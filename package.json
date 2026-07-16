@@ -7,6 +7,6 @@
     "build": "npm run check && node scripts/build-static.mjs",
     "dev": "python3 -m http.server 8080",
     "start": "python3 -m http.server 8080",
-    "check": "node --check app.js"
+    "check": "node --check app.js && node --check api/ai.js && node --check api/monitor.js"
   }
 }

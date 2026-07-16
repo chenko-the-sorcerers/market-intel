@@ -4,7 +4,7 @@ const sources = {
   damian: "https://www.linkedin.com/in/damianborth/",
 };
 
-let companies = [
+const seedCompanies = [
   {
     name: "Sociovestix Labs",
     type: "Prospect",
@@ -19,7 +19,7 @@ let companies = [
   },
 ];
 
-let updates = [
+const seedUpdates = [
   {
     company: "Sociovestix Labs",
     type: "Prospect",
@@ -92,7 +92,7 @@ let updates = [
   },
 ];
 
-const people = [
+const seedPeople = [
   {
     name: "Andreas Hoepner",
     role: "Sustainable finance / financial data science contact",
@@ -127,7 +127,7 @@ const people = [
   },
 ];
 
-let library = [
+const seedLibrary = [
   {
     name: "Sociovestix website capture",
     type: "Web note",
@@ -153,13 +153,42 @@ const riskScores = [
   ["Market Risk", 58],
 ];
 
-const kpis = [
-  ["New updates", "4"],
-  ["High priority", "3"],
-  ["ESG/risk updates", "5"],
-  ["Companies checked", "1"],
-  ["Source failures", "2"],
-];
+const STORE_KEY = "market-intel-mvp-state-v2";
+
+const defaultState = {
+  companies: seedCompanies,
+  updates: seedUpdates,
+  people: seedPeople,
+  library: seedLibrary,
+  briefs: [],
+};
+
+function loadState() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORE_KEY));
+    return {
+      companies: stored?.companies?.length ? stored.companies : seedCompanies,
+      updates: stored?.updates?.length ? stored.updates : seedUpdates,
+      people: stored?.people?.length ? stored.people : seedPeople,
+      library: stored?.library?.length ? stored.library : seedLibrary,
+      briefs: stored?.briefs || [],
+    };
+  } catch {
+    return defaultState;
+  }
+}
+
+let state = loadState();
+let companies = state.companies;
+let updates = state.updates;
+let people = state.people;
+let library = state.library;
+let briefs = state.briefs;
+
+function persistState() {
+  state = { companies, updates, people, library, briefs };
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+}
 
 const selectors = {
   navItems: document.querySelectorAll(".nav-item"),
@@ -199,6 +228,34 @@ function showToast(message) {
   toastTimeout = setTimeout(() => selectors.toast.classList.remove("visible"), 2400);
 }
 
+function getKpis() {
+  const highPriority = updates.filter((update) => update.priority === "High").length;
+  const riskUpdates = updates.filter((update) =>
+    update.labels.some((label) =>
+      ["ESG", "Climate", "Regulatory", "Reputation", "Operational Risk", "Market Risk"].includes(label),
+    ),
+  ).length;
+  const sourceFailures = updates.filter((update) => update.labels.includes("Source Health")).length;
+
+  return [
+    ["New updates", String(updates.filter((update) => update.status === "New").length)],
+    ["High priority", String(highPriority)],
+    ["ESG/risk updates", String(riskUpdates)],
+    ["Companies checked", String(companies.length)],
+    ["Source failures", String(sourceFailures)],
+  ];
+}
+
+function refreshAllViews() {
+  renderKpis();
+  renderFilters();
+  renderUpdates();
+  renderCompanies();
+  renderPeople();
+  renderLibrary();
+  persistState();
+}
+
 function openCompanyDialog() {
   const dialog = document.querySelector("#companyDialog");
   if (typeof dialog.showModal === "function") {
@@ -222,7 +279,7 @@ function tag(label, extra = "") {
 }
 
 function renderKpis() {
-  selectors.kpiGrid.innerHTML = kpis
+  selectors.kpiGrid.innerHTML = getKpis()
     .map(([label, value]) => `<div class="kpi-card"><span>${label}</span><strong>${value}</strong></div>`)
     .join("");
 }
@@ -393,6 +450,7 @@ function renderLibrary() {
         <article class="library-card">
           <h2>${file.name}</h2>
           <p>${file.type} · Linked to ${file.linked}</p>
+          ${file.extractedText ? `<p>${file.extractedText.slice(0, 220)}${file.extractedText.length > 220 ? "..." : ""}</p>` : ""}
           <div class="tag-row">${tag(file.status)} ${file.tags.map((item) => tag(item)).join("")}</div>
         </article>
       `,
@@ -428,6 +486,33 @@ function renderBrief({ notify = true } = {}) {
   if (notify) showToast("Brief generated.");
 }
 
+function renderAiBrief(text) {
+  briefs = [
+    {
+      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+      title: "AI-generated Sociovestix brief",
+      createdAt: new Date().toISOString(),
+      text,
+    },
+    ...briefs,
+  ];
+  persistState();
+  selectors.briefOutput.innerHTML = `
+    <h2>AI-generated brief</h2>
+    <section>
+      ${formatAiText(text)}
+    </section>
+  `;
+  showToast("AI brief generated.");
+}
+
+function formatAiText(text) {
+  return text
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${paragraph.trim().replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
 function addMessage(role, html) {
   selectors.chatMessages.insertAdjacentHTML("beforeend", `<div class="message ${role}">${html}</div>`);
   selectors.chatMessages.scrollTop = selectors.chatMessages.scrollHeight;
@@ -442,6 +527,72 @@ function answerQuestion(question) {
     return `<strong>ESG / risk readout</strong><p>Facts: public positioning includes climate transition investing, investment impact analytics, net-zero target benchmarking, data quality testing, and executive tracking. Inferences: regulatory, operational, and market-risk signals should be prioritized for this company.</p><p>Source: <a href="${sources.sociovestix}" target="_blank" rel="noreferrer">Sociovestix website</a>.</p>`;
   }
   return `<strong>Research answer</strong><p>Facts: I can currently use the configured Sociovestix website, LinkedIn profile URLs, and demo research notes. Inferences: the strongest commercial angle is source-backed market monitoring for ESG and AI-heavy financial research. Recommendation: upload previous meeting notes next so the assistant can connect public updates to your relationship history.</p>`;
+}
+
+function compactContext() {
+  return {
+    companies,
+    updates: updates.slice(0, 20),
+    people,
+    library: library.slice(0, 20),
+    briefs: briefs.slice(0, 10),
+  };
+}
+
+async function postJson(url, payload) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Request failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function askAi(task, question) {
+  const result = await postJson("/api/ai", {
+    task,
+    question,
+    context: compactContext(),
+  });
+  return result.text;
+}
+
+async function monitorCompany(company) {
+  const result = await postJson("/api/monitor", {
+    company: company.name,
+    sourceUrl: company.website,
+  });
+
+  const update = {
+    company: company.name,
+    type: company.type,
+    source: "Website",
+    published: result.published || "Fetched website",
+    discovered: new Date().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }),
+    title: result.title || `Website refresh: ${company.name}`,
+    summary: result.summary,
+    labels: result.labels,
+    priority: result.priority,
+    status: "New",
+    url: company.website,
+  };
+
+  const exists = updates.some(
+    (item) => item.company === update.company && item.title === update.title && item.url === update.url,
+  );
+  if (!exists) updates = [update, ...updates];
+
+  return { update, exists };
 }
 
 function bindEvents() {
@@ -459,16 +610,41 @@ function bindEvents() {
     select.addEventListener("change", renderUpdates),
   );
   selectors.search.addEventListener("input", renderUpdates);
-  document.querySelector("#refreshButton").addEventListener("click", () => {
-    updates[0].status = "Reviewed";
-    renderUpdates();
-    addMessage("bot", "<strong>Refresh complete</strong><p>Demo run checked 1 company, 5 updates, and 3 source-health states.</p>");
-    showToast("Sources refreshed. First update marked reviewed.");
+  document.querySelector("#refreshButton").addEventListener("click", async () => {
+    showToast("Refreshing configured website sources...");
+    try {
+      const results = await Promise.all(companies.map((company) => monitorCompany(company)));
+      companies = companies.map((company) => ({
+        ...company,
+        lastChecked: new Date().toLocaleString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        health: "Healthy",
+      }));
+      refreshAllViews();
+      const added = results.filter((result) => !result.exists).length;
+      addMessage(
+        "bot",
+        `<strong>Refresh complete</strong><p>Checked ${companies.length} company source(s). Added ${added} new website update(s). LinkedIn/Instagram/X still require provider or authenticated collection.</p>`,
+      );
+      showToast(`Refresh complete. ${added} update(s) added.`);
+    } catch (error) {
+      updates[0].status = "Reviewed";
+      refreshAllViews();
+      addMessage(
+        "bot",
+        `<strong>Refresh fallback complete</strong><p>The website monitor endpoint was unavailable, so the local demo state was updated instead. ${error.message}</p>`,
+      );
+      showToast("Refresh fallback applied.");
+    }
   });
   document.querySelector("#markReviewed").addEventListener("click", () => {
     updates = updates.map((update) => ({ ...update, status: "Reviewed" }));
-    renderFilters();
-    renderUpdates();
+    refreshAllViews();
     showToast("All visible updates marked reviewed.");
   });
   document.querySelector("#openCompanyForm").addEventListener("click", openCompanyDialog);
@@ -490,7 +666,7 @@ function bindEvents() {
       lastChecked: "Not checked",
       website: form.get("website") || "#",
     });
-    renderCompanies();
+    refreshAllViews();
     showToast(`${form.get("name")} added to monitoring.`);
     event.currentTarget.reset();
     closeCompanyDialog();
@@ -505,8 +681,7 @@ function bindEvents() {
       updates = updates.map((update) =>
         update.title === title ? { ...update, status: "Saved" } : update,
       );
-      renderFilters();
-      renderUpdates();
+      refreshAllViews();
       showToast("Update saved.");
       return;
     }
@@ -516,8 +691,7 @@ function bindEvents() {
       updates = updates.map((update) =>
         update.title === title ? { ...update, status: "Reviewed" } : update,
       );
-      renderFilters();
-      renderUpdates();
+      refreshAllViews();
       showToast("Update marked reviewed.");
       return;
     }
@@ -535,28 +709,55 @@ function bindEvents() {
       showToast(`${button.textContent} tab opened.`);
     }),
   );
-  document.querySelector("#fileInput").addEventListener("change", (event) => {
-    const files = [...event.target.files].map((file) => ({
+  document.querySelector("#fileInput").addEventListener("change", async (event) => {
+    const files = await Promise.all([...event.target.files].map(async (file) => ({
       name: file.name,
       type: file.name.split(".").pop()?.toUpperCase() || "File",
       linked: "General research library",
       status: "Uploaded",
       tags: ["Manual upload"],
-    }));
+      extractedText: await extractFileText(file),
+    })));
     library = [...files, ...library];
-    renderLibrary();
+    refreshAllViews();
     if (files.length) showToast(`${files.length} file(s) added to research library.`);
   });
-  document.querySelector("#generateBrief").addEventListener("click", renderBrief);
-  document.querySelector("#chatForm").addEventListener("submit", (event) => {
+  document.querySelector("#generateBrief").addEventListener("click", async () => {
+    renderBrief();
+    try {
+      const text = await askAi(
+        "brief",
+        "Generate a one-page meeting brief for Sociovestix Labs. Focus on ESG risk, AI opportunity, recent updates, likely pain points, suggested pitch angle, discovery questions, and sources. Separate facts, inferences, and recommendations.",
+      );
+      renderAiBrief(text);
+    } catch (error) {
+      showToast("AI env not configured yet. Showing local brief.");
+    }
+  });
+  document.querySelector("#chatForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     const input = document.querySelector("#chatInput");
     const question = input.value.trim();
     if (!question) return;
     addMessage("user", `<strong>You</strong><p>${question}</p>`);
-    addMessage("bot", answerQuestion(question));
     input.value = "";
+    try {
+      const text = await askAi("chat", question);
+      addMessage("bot", `<strong>AI answer</strong>${formatAiText(text)}`);
+    } catch {
+      addMessage("bot", answerQuestion(question));
+    }
   });
+}
+
+async function extractFileText(file) {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (!["txt", "md", "csv", "json"].includes(extension)) {
+    return "Uploaded. Text extraction for this file type should run on the backend in the production version.";
+  }
+
+  const text = await file.text();
+  return text.slice(0, 8000);
 }
 
 function initBriefControls() {
