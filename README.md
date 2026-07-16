@@ -16,9 +16,9 @@ Import this repository into Vercel and keep the defaults:
 
 - Framework preset: `Other`
 - Build command: `npm run build`
-- Output directory: empty / project root
+- Output directory: `public`
 
-The MVP is a static app, so Vercel serves `index.html`, `styles.css`, and `app.js` directly.
+The MVP is a static app. The build step validates `app.js`, then copies `index.html`, `styles.css`, and `app.js` into `public` for Vercel.
 
 ## Current MVP
 
