@@ -179,7 +179,10 @@ const selectors = {
   workspaceContent: document.querySelector("#workspaceContent"),
   briefOutput: document.querySelector("#briefOutput"),
   chatMessages: document.querySelector("#chatMessages"),
+  toast: document.querySelector("#toast"),
 };
+
+let toastTimeout;
 
 function switchView(viewId) {
   selectors.views.forEach((view) => view.classList.toggle("active", view.id === viewId));
@@ -187,6 +190,31 @@ function switchView(viewId) {
     item.classList.toggle("active", item.dataset.view === viewId),
   );
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function showToast(message) {
+  selectors.toast.textContent = message;
+  selectors.toast.classList.add("visible");
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => selectors.toast.classList.remove("visible"), 2400);
+}
+
+function openCompanyDialog() {
+  const dialog = document.querySelector("#companyDialog");
+  if (typeof dialog.showModal === "function") {
+    dialog.showModal();
+  } else {
+    dialog.setAttribute("open", "");
+  }
+}
+
+function closeCompanyDialog() {
+  const dialog = document.querySelector("#companyDialog");
+  if (typeof dialog.close === "function") {
+    dialog.close();
+  } else {
+    dialog.removeAttribute("open");
+  }
 }
 
 function tag(label, extra = "") {
@@ -215,6 +243,7 @@ function renderRisks() {
 
 function renderUpdateCard(update) {
   const priorityClass = update.priority.toLowerCase();
+  const updateId = encodeURIComponent(update.title);
   return `
     <article class="update-card" data-search="${[
       update.company,
@@ -236,9 +265,9 @@ function renderUpdateCard(update) {
       <div class="tag-row">${update.labels.map((item) => tag(item)).join("")} ${tag(update.status)}</div>
       <div class="card-actions">
         <a href="${update.url}" target="_blank" rel="noreferrer">Open source</a>
-        <button data-save="${update.title}">Save</button>
-        <button data-review="${update.title}">Mark reviewed</button>
-        <button data-brief="${update.company}">Generate brief</button>
+        <button type="button" data-save="${updateId}">Save</button>
+        <button type="button" data-review="${updateId}">Mark reviewed</button>
+        <button type="button" data-brief="${update.company}">Generate brief</button>
       </div>
     </article>
   `;
@@ -371,7 +400,7 @@ function renderLibrary() {
     .join("");
 }
 
-function renderBrief() {
+function renderBrief({ notify = true } = {}) {
   selectors.briefOutput.innerHTML = `
     <h2>One-page meeting brief: Sociovestix Labs</h2>
     <p><strong>Purpose:</strong> Prepare a source-backed discovery conversation on ESG data quality and AI-enabled financial research workflows.</p>
@@ -396,6 +425,7 @@ function renderBrief() {
       <p><a href="${sources.sociovestix}" target="_blank" rel="noreferrer">Sociovestix website</a>, configured LinkedIn profile URLs, and uploaded research notes.</p>
     </section>
   `;
+  if (notify) showToast("Brief generated.");
 }
 
 function addMessage(role, html) {
@@ -417,7 +447,13 @@ function answerQuestion(question) {
 function bindEvents() {
   selectors.navItems.forEach((item) => item.addEventListener("click", () => switchView(item.dataset.view)));
   document.querySelectorAll("[data-view-jump]").forEach((button) =>
-    button.addEventListener("click", () => switchView(button.dataset.viewJump)),
+    button.addEventListener("click", () => {
+      switchView(button.dataset.viewJump);
+      if (button.dataset.viewJump === "briefs") renderBrief();
+      if (button.dataset.viewJump === "library") {
+        setTimeout(() => document.querySelector("#fileInput").click(), 150);
+      }
+    }),
   );
   [selectors.companyFilter, selectors.sourceFilter, selectors.priorityFilter, selectors.statusFilter].forEach((select) =>
     select.addEventListener("change", renderUpdates),
@@ -427,15 +463,19 @@ function bindEvents() {
     updates[0].status = "Reviewed";
     renderUpdates();
     addMessage("bot", "<strong>Refresh complete</strong><p>Demo run checked 1 company, 5 updates, and 3 source-health states.</p>");
+    showToast("Sources refreshed. First update marked reviewed.");
   });
   document.querySelector("#markReviewed").addEventListener("click", () => {
     updates = updates.map((update) => ({ ...update, status: "Reviewed" }));
     renderFilters();
     renderUpdates();
+    showToast("All visible updates marked reviewed.");
   });
-  document.querySelector("#openCompanyForm").addEventListener("click", () => document.querySelector("#companyDialog").showModal());
-  document.querySelector("[data-action='addCompany']").addEventListener("click", () => document.querySelector("#companyDialog").showModal());
+  document.querySelector("#openCompanyForm").addEventListener("click", openCompanyDialog);
+  document.querySelector("[data-action='addCompany']").addEventListener("click", openCompanyDialog);
+  document.querySelector("#closeCompanyDialog").addEventListener("click", closeCompanyDialog);
   document.querySelector("#companyForm").addEventListener("submit", (event) => {
+    event.preventDefault();
     const form = new FormData(event.currentTarget);
     if (!form.get("name")) return;
     companies.push({
@@ -451,13 +491,48 @@ function bindEvents() {
       website: form.get("website") || "#",
     });
     renderCompanies();
+    showToast(`${form.get("name")} added to monitoring.`);
     event.currentTarget.reset();
+    closeCompanyDialog();
+  });
+  document.addEventListener("click", (event) => {
+    const saveButton = event.target.closest("[data-save]");
+    const reviewButton = event.target.closest("[data-review]");
+    const briefButton = event.target.closest("[data-brief]");
+
+    if (saveButton) {
+      const title = decodeURIComponent(saveButton.dataset.save);
+      updates = updates.map((update) =>
+        update.title === title ? { ...update, status: "Saved" } : update,
+      );
+      renderFilters();
+      renderUpdates();
+      showToast("Update saved.");
+      return;
+    }
+
+    if (reviewButton) {
+      const title = decodeURIComponent(reviewButton.dataset.review);
+      updates = updates.map((update) =>
+        update.title === title ? { ...update, status: "Reviewed" } : update,
+      );
+      renderFilters();
+      renderUpdates();
+      showToast("Update marked reviewed.");
+      return;
+    }
+
+    if (briefButton) {
+      switchView("briefs");
+      renderBrief();
+    }
   });
   document.querySelectorAll("[data-workspace-tab]").forEach((button) =>
     button.addEventListener("click", () => {
       document.querySelectorAll("[data-workspace-tab]").forEach((tab) => tab.classList.remove("active"));
       button.classList.add("active");
       renderWorkspace(button.dataset.workspaceTab);
+      showToast(`${button.textContent} tab opened.`);
     }),
   );
   document.querySelector("#fileInput").addEventListener("change", (event) => {
@@ -470,6 +545,7 @@ function bindEvents() {
     }));
     library = [...files, ...library];
     renderLibrary();
+    if (files.length) showToast(`${files.length} file(s) added to research library.`);
   });
   document.querySelector("#generateBrief").addEventListener("click", renderBrief);
   document.querySelector("#chatForm").addEventListener("submit", (event) => {
@@ -512,7 +588,7 @@ renderWorkspace();
 renderPeople();
 renderLibrary();
 initBriefControls();
-renderBrief();
+renderBrief({ notify: false });
 bindEvents();
 addMessage(
   "bot",

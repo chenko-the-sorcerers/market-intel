@@ -427,6 +427,19 @@ p {
   padding: 0 10px;
 }
 
+.card-actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #fff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .quick-actions {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -622,6 +635,30 @@ dialog {
   width: 32px;
   height: 32px;
   background: var(--surface-soft);
+}
+
+.toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 20;
+  max-width: min(420px, calc(100vw - 40px));
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--navy);
+  color: #fff;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.toast.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 @media (max-width: 980px) {

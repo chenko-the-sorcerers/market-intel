@@ -264,10 +264,10 @@
     </div>
 
     <dialog id="companyDialog">
-      <form method="dialog" class="dialog-card" id="companyForm">
+      <form class="dialog-card" id="companyForm">
         <div class="panel-header">
           <h2>Add monitored company</h2>
-          <button class="icon-button" value="cancel" aria-label="Close">x</button>
+          <button class="icon-button" type="button" id="closeCompanyDialog" aria-label="Close">x</button>
         </div>
         <label>Company name <input name="name" required placeholder="Company name" /></label>
         <label>Website <input name="website" type="url" placeholder="https://example.com" /></label>
@@ -278,9 +278,10 @@
           </select>
         </label>
         <label>Industry <input name="industry" placeholder="Industry" /></label>
-        <button class="button primary" value="default">Save company</button>
+        <button class="button primary" type="submit">Save company</button>
       </form>
     </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="./app.js"></script>
   </body>
