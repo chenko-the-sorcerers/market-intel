@@ -184,9 +184,10 @@ let updates = state.updates;
 let people = state.people;
 let library = state.library;
 let briefs = state.briefs;
+let sourcesState = state.sources || [];
 
 function persistState() {
-  state = { companies, updates, people, library, briefs };
+  state = { companies, updates, people, library, briefs, sources: sourcesState };
   localStorage.setItem(STORE_KEY, JSON.stringify(state));
 }
 
@@ -389,6 +390,19 @@ function renderCompanies() {
 }
 
 function renderWorkspace(tab = "overview") {
+  const company = companies.find((item) => item.name === "Sociovestix Labs") || companies[0];
+  const companyUpdates = updates.filter((update) => update.company === company?.name);
+  const companyPeople = people.filter((person) => person.company === company?.name);
+  const companyFiles = library.filter((file) =>
+    [file.linked, file.name, file.extractedText].join(" ").toLowerCase().includes((company?.name || "").toLowerCase()),
+  );
+  const companySources = sourcesState.length
+    ? sourcesState.filter((source) => source.company_id === company?.id || source.url?.includes("sociovestix"))
+    : [
+        { source_type: "website", url: sources.sociovestix, monitoring_status: "active", fetch_strategy: "crawl" },
+        { source_type: "linkedin", url: sources.andreas, monitoring_status: "manual", fetch_strategy: "manual_upload" },
+        { source_type: "linkedin", url: sources.damian, monitoring_status: "manual", fetch_strategy: "manual_upload" },
+      ];
   const content = {
     overview: `
       <div class="summary-columns">
@@ -407,15 +421,76 @@ function renderWorkspace(tab = "overview") {
       </div>
     `,
     sources: `
-      <div class="summary-columns">
-        <div class="summary-block"><h3>Healthy</h3><p><a href="${sources.sociovestix}" target="_blank" rel="noreferrer">Company website</a> is configured for crawl and manual refresh.</p></div>
-        <div class="summary-block"><h3>Needs validation</h3><p>LinkedIn profiles for Andreas Hoepner and Damian Borth are configured, but production collection needs authenticated access, a provider, or manual import fallback.</p></div>
+      <div class="update-list">
+        ${companySources
+          .map(
+            (source) => `
+              <div class="summary-block">
+                <h3>${titleCase(source.source_type)} · ${titleCase(source.monitoring_status)}</h3>
+                <p><a href="${source.url}" target="_blank" rel="noreferrer">${source.url}</a></p>
+                <div class="tag-row">${tag(source.fetch_strategy || "crawl")} ${tag(source.last_error ? "Needs attention" : "Ready")}</div>
+              </div>
+            `,
+          )
+          .join("")}
       </div>
     `,
-    research: `
-      <div class="summary-columns">
-        <div class="summary-block"><h3>Meeting angle</h3><p>Lead with ESG data reliability, AI auditability, and source-backed market-monitoring workflows for sustainable finance teams.</p></div>
-        <div class="summary-block"><h3>Potential pain points</h3><p>Data-provider quality drift, entity matching defects, regulated AI transparency, and difficulty turning public updates into timely client-ready briefs.</p></div>
+    updates: `
+      <div class="update-list">
+        ${companyUpdates.slice(0, 8).map(renderUpdateCard).join("") || "<p>No company updates yet.</p>"}
+      </div>
+    `,
+    people: `
+      <div class="people-grid">
+        ${companyPeople
+          .map(
+            (person) => `
+              <article class="person-card">
+                <h2>${person.name}</h2>
+                <p>${person.role}</p>
+                <p>${person.inferences}</p>
+              </article>
+            `,
+          )
+          .join("") || "<p>No people linked yet.</p>"}
+      </div>
+    `,
+    files: `
+      <div class="library-grid">
+        ${companyFiles
+          .map(
+            (file) => `
+              <article class="library-card">
+                <h2>${file.name}</h2>
+                <p>${file.type} · ${file.status}</p>
+                <p>${(file.extractedText || "").slice(0, 220)}</p>
+              </article>
+            `,
+          )
+          .join("") || "<p>No files linked yet. Upload notes or exports in Research Library.</p>"}
+      </div>
+    `,
+    briefs: `
+      <div class="update-list">
+        ${briefs
+          .slice(0, 8)
+          .map(
+            (brief) => `
+              <div class="summary-block">
+                <h3>${brief.title || "Brief"}</h3>
+                <p>${(brief.body_markdown || brief.text || "").slice(0, 360)}</p>
+                ${brief.id ? `<a href="/api/export?id=${brief.id}&format=md">Export Markdown</a> · <a href="/api/export?id=${brief.id}&format=html">Export HTML/PDF</a> · <a href="/api/export?id=${brief.id}&format=docx">Export DOC</a>` : ""}
+              </div>
+            `,
+          )
+          .join("") || "<p>No briefs generated yet.</p>"}
+      </div>
+    `,
+    chat: `
+      <div class="summary-block">
+        <h3>Company-scoped chat</h3>
+        <p>Use the Chatbot section and select company scope. The backend sends company updates, people, files, and briefs as retrieval context.</p>
+        <button class="button primary" data-view-jump="chatbot" type="button">Open company chat</button>
       </div>
     `,
   };
@@ -482,6 +557,13 @@ function renderBrief({ notify = true } = {}) {
       <h3>Sources</h3>
       <p><a href="${sources.sociovestix}" target="_blank" rel="noreferrer">Sociovestix website</a>, configured LinkedIn profile URLs, and uploaded research notes.</p>
     </section>
+    <section>
+      <h3>Export</h3>
+      <div class="card-actions">
+        <button type="button" data-export-local="md">Download Markdown</button>
+        <button type="button" data-export-local="html">Download HTML / Print PDF</button>
+      </div>
+    </section>
   `;
   if (notify) showToast("Brief generated.");
 }
@@ -501,6 +583,13 @@ function renderAiBrief(text) {
     <h2>AI-generated brief</h2>
     <section>
       ${formatAiText(text)}
+    </section>
+    <section>
+      <h3>Export</h3>
+      <div class="card-actions">
+        ${briefs[0]?.id ? `<a href="/api/export?id=${briefs[0].id}&format=md">Markdown</a><a href="/api/export?id=${briefs[0].id}&format=html">HTML / Print PDF</a><a href="/api/export?id=${briefs[0].id}&format=docx">DOC</a>` : ""}
+        <button type="button" data-export-local="md">Download local Markdown</button>
+      </div>
     </section>
   `;
   showToast("AI brief generated.");
@@ -529,6 +618,23 @@ function answerQuestion(question) {
   return `<strong>Research answer</strong><p>Facts: I can currently use the configured Sociovestix website, LinkedIn profile URLs, and demo research notes. Inferences: the strongest commercial angle is source-backed market monitoring for ESG and AI-heavy financial research. Recommendation: upload previous meeting notes next so the assistant can connect public updates to your relationship history.</p>`;
 }
 
+function downloadText(filename, content, type = "text/plain") {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function currentBriefMarkdown() {
+  const text = selectors.briefOutput.innerText.trim();
+  return `# Market intelligence brief\n\n${text}`;
+}
+
 function compactContext() {
   return {
     companies,
@@ -552,6 +658,103 @@ async function postJson(url, payload) {
   }
 
   return response.json();
+}
+
+async function fetchJson(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || `Request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+function normalizeRemoteData(data) {
+  companies = (data.companies || companies).map((company) => ({
+    id: company.id,
+    name: company.name,
+    type: titleCase(company.company_type || company.type || "prospect"),
+    industry: company.industry || "Unclassified",
+    country: company.country || company.region || "TBD",
+    health: company.monitoring_status === "active" ? "Healthy" : "Partial",
+    status: titleCase(company.monitoring_status || "active"),
+    high: updates.filter((update) => update.company === company.name && update.priority === "High").length,
+    risk: updates.filter((update) => update.company === company.name && hasRisk(update.labels)).length,
+    lastChecked: company.updated_at ? new Date(company.updated_at).toLocaleString("en-GB") : "Not checked",
+    website: company.website_url || company.website || "#",
+  }));
+
+  sourcesState = data.sources || sourcesState;
+
+  updates = (data.updates || updates).map((update) => ({
+    id: update.id,
+    company:
+      data.companies?.find((company) => company.id === update.company_id)?.name ||
+      update.company ||
+      "Unknown company",
+    type: "Prospect",
+    source: titleCase(update.source_type || update.source || "website"),
+    published: update.published_at ? new Date(update.published_at).toLocaleDateString("en-GB") : "Discovered",
+    discovered: update.discovered_at ? new Date(update.discovered_at).toLocaleDateString("en-GB") : update.discovered,
+    title: update.title || "Untitled update",
+    summary: update.ai_summary_en || update.summary || update.snippet || "",
+    labels: Array.isArray(update.labels) ? update.labels : JSON.parse(update.labels || "[]"),
+    priority: titleCase(update.ai_importance || update.priority || "medium"),
+    status: titleCase(update.status || "new"),
+    url: update.source_url || update.url || "#",
+  }));
+
+  people = (data.people || people).map((person) => ({
+    id: person.id,
+    name: person.full_name || person.name,
+    role: person.role_title || person.role,
+    company:
+      data.companies?.find((company) => company.id === person.company_id)?.name ||
+      person.company ||
+      "Unlinked",
+    url: person.linkedin_url || person.profile_url || person.url || "#",
+    confidence: person.ai_confidence ? `${Math.round(Number(person.ai_confidence) * 100)}%` : person.confidence || "Medium",
+    facts: person.notes || person.facts || "",
+    inferences: person.ai_background_summary || person.inferences || "",
+    questions: person.questions || ["What changed recently?", "What pain point should we validate?", "Which source should be checked next?"],
+  }));
+
+  library = (data.library || library).map((file) => ({
+    id: file.id,
+    name: file.file_name || file.name,
+    type: file.file_type || file.type,
+    linked: file.company_id || file.linked || "General research library",
+    status: titleCase(file.extraction_status || file.status || "uploaded"),
+    tags: Array.isArray(file.tags) ? file.tags : JSON.parse(file.tags || "[]"),
+    extractedText: file.extracted_text || file.extractedText || "",
+  }));
+
+  briefs = data.briefs || briefs;
+}
+
+async function syncDatabase({ silent = false } = {}) {
+  try {
+    const data = await fetchJson("/api/data");
+    normalizeRemoteData(data);
+    refreshAllViews();
+    if (!silent) showToast("Database synced.");
+    return true;
+  } catch (error) {
+    if (!silent) showToast(`Database not configured yet: ${error.message}`);
+    return false;
+  }
+}
+
+function titleCase(value) {
+  return String(value || "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function hasRisk(labels = []) {
+  return labels.some((label) =>
+    ["ESG", "Climate", "Regulatory", "Reputation", "Operational Risk", "Market Risk"].includes(label),
+  );
 }
 
 async function askAi(task, question) {
@@ -595,6 +798,12 @@ async function monitorCompany(company) {
   return { update, exists };
 }
 
+async function runBackendMonitor() {
+  const result = await postJson("/api/monitor-run", {});
+  await syncDatabase({ silent: true });
+  return result;
+}
+
 function bindEvents() {
   selectors.navItems.forEach((item) => item.addEventListener("click", () => switchView(item.dataset.view)));
   document.querySelectorAll("[data-view-jump]").forEach((button) =>
@@ -606,6 +815,7 @@ function bindEvents() {
       }
     }),
   );
+  document.querySelector("#syncButton").addEventListener("click", () => syncDatabase());
   [selectors.companyFilter, selectors.sourceFilter, selectors.priorityFilter, selectors.statusFilter].forEach((select) =>
     select.addEventListener("change", renderUpdates),
   );
@@ -613,6 +823,13 @@ function bindEvents() {
   document.querySelector("#refreshButton").addEventListener("click", async () => {
     showToast("Refreshing configured website sources...");
     try {
+      const backendResult = await runBackendMonitor();
+      addMessage(
+        "bot",
+        `<strong>Refresh complete</strong><p>Checked ${backendResult.checked_sources} configured source(s). Added ${backendResult.inserted} new update(s), deduped ${backendResult.deduped}. LinkedIn/Instagram/X remain manual/provider sources.</p>`,
+      );
+      showToast(`Refresh complete. ${backendResult.inserted} update(s) added.`);
+    } catch (error) {
       const results = await Promise.all(companies.map((company) => monitorCompany(company)));
       companies = companies.map((company) => ({
         ...company,
@@ -629,15 +846,7 @@ function bindEvents() {
       const added = results.filter((result) => !result.exists).length;
       addMessage(
         "bot",
-        `<strong>Refresh complete</strong><p>Checked ${companies.length} company source(s). Added ${added} new website update(s). LinkedIn/Instagram/X still require provider or authenticated collection.</p>`,
-      );
-      showToast(`Refresh complete. ${added} update(s) added.`);
-    } catch (error) {
-      updates[0].status = "Reviewed";
-      refreshAllViews();
-      addMessage(
-        "bot",
-        `<strong>Refresh fallback complete</strong><p>The website monitor endpoint was unavailable, so the local demo state was updated instead. ${error.message}</p>`,
+        `<strong>Refresh fallback complete</strong><p>Database monitor was unavailable, so ${companies.length} local source(s) were checked and ${added} local update(s) were added. ${error.message}</p>`,
       );
       showToast("Refresh fallback applied.");
     }
@@ -666,21 +875,43 @@ function bindEvents() {
       lastChecked: "Not checked",
       website: form.get("website") || "#",
     });
+    postJson("/api/data", {
+      entity: "company",
+      payload: {
+        name: form.get("name"),
+        company_type: form.get("type"),
+        industry: form.get("industry") || "Unclassified",
+        website_url: form.get("website") || null,
+      },
+    })
+      .then(() => syncDatabase({ silent: true }))
+      .catch(() => {});
     refreshAllViews();
     showToast(`${form.get("name")} added to monitoring.`);
     event.currentTarget.reset();
     closeCompanyDialog();
   });
   document.addEventListener("click", (event) => {
+    const viewButton = event.target.closest("[data-view-jump]");
     const saveButton = event.target.closest("[data-save]");
     const reviewButton = event.target.closest("[data-review]");
     const briefButton = event.target.closest("[data-brief]");
+    const exportButton = event.target.closest("[data-export-local]");
+
+    if (viewButton) {
+      switchView(viewButton.dataset.viewJump);
+      return;
+    }
 
     if (saveButton) {
       const title = decodeURIComponent(saveButton.dataset.save);
       updates = updates.map((update) =>
         update.title === title ? { ...update, status: "Saved" } : update,
       );
+      postJson("/api/data", {
+        entity: "update-status",
+        payload: { title, status: "saved" },
+      }).catch(() => {});
       refreshAllViews();
       showToast("Update saved.");
       return;
@@ -691,6 +922,10 @@ function bindEvents() {
       updates = updates.map((update) =>
         update.title === title ? { ...update, status: "Reviewed" } : update,
       );
+      postJson("/api/data", {
+        entity: "update-status",
+        payload: { title, status: "reviewed" },
+      }).catch(() => {});
       refreshAllViews();
       showToast("Update marked reviewed.");
       return;
@@ -699,6 +934,17 @@ function bindEvents() {
     if (briefButton) {
       switchView("briefs");
       renderBrief();
+      return;
+    }
+
+    if (exportButton) {
+      const format = exportButton.dataset.exportLocal;
+      const markdown = currentBriefMarkdown();
+      if (format === "html") {
+        downloadText("market-intelligence-brief.html", `<html><body><pre>${markdown}</pre></body></html>`, "text/html");
+      } else {
+        downloadText("market-intelligence-brief.md", markdown, "text/markdown");
+      }
     }
   });
   document.querySelectorAll("[data-workspace-tab]").forEach((button) =>
@@ -719,19 +965,38 @@ function bindEvents() {
       extractedText: await extractFileText(file),
     })));
     library = [...files, ...library];
+    files.forEach((file) => {
+      postJson("/api/files", {
+        file_name: file.name,
+        file_type: file.type,
+        extracted_text: file.extractedText,
+        tags: file.tags,
+      }).catch(() => {});
+    });
     refreshAllViews();
     if (files.length) showToast(`${files.length} file(s) added to research library.`);
   });
   document.querySelector("#generateBrief").addEventListener("click", async () => {
     renderBrief();
     try {
-      const text = await askAi(
-        "brief",
-        "Generate a one-page meeting brief for Sociovestix Labs. Focus on ESG risk, AI opportunity, recent updates, likely pain points, suggested pitch angle, discovery questions, and sources. Separate facts, inferences, and recommendations.",
-      );
-      renderAiBrief(text);
+      const result = await postJson("/api/briefs", {
+        brief_type: document.querySelector("#briefType").value,
+        title: `${document.querySelector("#briefType").value}: Sociovestix Labs`,
+        question:
+          "Generate a one-page meeting brief for Sociovestix Labs. Focus on ESG risk, AI opportunity, recent updates, likely pain points, suggested pitch angle, discovery questions, and sources. Separate facts, inferences, and recommendations.",
+      });
+      briefs = [result.brief, ...briefs];
+      renderAiBrief(result.brief.body_markdown);
     } catch (error) {
-      showToast("AI env not configured yet. Showing local brief.");
+      try {
+        const text = await askAi(
+          "brief",
+          "Generate a one-page meeting brief for Sociovestix Labs. Focus on ESG risk, AI opportunity, recent updates, likely pain points, suggested pitch angle, discovery questions, and sources. Separate facts, inferences, and recommendations.",
+        );
+        renderAiBrief(text);
+      } catch {
+        showToast("AI/DB env not configured yet. Showing local brief.");
+      }
     }
   });
   document.querySelector("#chatForm").addEventListener("submit", async (event) => {
@@ -795,3 +1060,4 @@ addMessage(
   "bot",
   `<strong>Research assistant ready</strong><p>Ask me for a Sociovestix meeting brief, ESG risk summary, source gaps, or suggested discovery questions. I will separate facts, inferences, and recommendations.</p>`,
 );
+syncDatabase({ silent: true });

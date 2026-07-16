@@ -1,3 +1,5 @@
+import { summarizeUpdate } from "./_llm.js";
+
 export default async function handler(request, response) {
   if (request.method !== "POST") {
     return response.status(405).json({ error: "Method not allowed" });
@@ -26,17 +28,18 @@ export default async function handler(request, response) {
       extractMeta(html, "description") ||
       cleanText(html).slice(0, 420) ||
       "Website was fetched successfully, but no readable description was found.";
-
-    const labels = inferLabels(`${title} ${description}`);
-    const priority = labels.some((label) => ["ESG", "Climate", "Regulatory", "Operational Risk"].includes(label))
-      ? "High"
-      : "Medium";
+    const summary = await summarizeUpdate({
+      title,
+      rawText: description,
+      sourceUrl: url.href,
+    });
 
     return response.status(200).json({
       title,
-      summary: `Fact: ${description} Source: ${url.href}`,
-      labels,
-      priority,
+      summary: summary.summary,
+      labels: summary.labels,
+      risk_categories: summary.risk_categories,
+      priority: summary.priority,
       published: "Fetched website",
       sourceUrl: url.href,
     });
@@ -80,16 +83,4 @@ function decodeEntities(text) {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'");
-}
-
-function inferLabels(text) {
-  const lower = text.toLowerCase();
-  const labels = new Set(["Website"]);
-  if (/esg|sustainab|impact|net.?zero/.test(lower)) labels.add("ESG");
-  if (/climate|carbon|transition|emission/.test(lower)) labels.add("Climate");
-  if (/regulat|compliance|sfdr|taxonomy|governance/.test(lower)) labels.add("Regulatory");
-  if (/quality|defect|risk|testing|six sigma/.test(lower)) labels.add("Operational Risk");
-  if (/ai|machine learning|neural|data science|nlp/.test(lower)) labels.add("AI");
-  if (/market|investment|asset|finance/.test(lower)) labels.add("Market Risk");
-  return [...labels];
 }

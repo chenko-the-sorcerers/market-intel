@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "@vercel/postgres": "^0.10.0"
+  },
   "scripts": {
     "build": "npm run check && node scripts/build-static.mjs",
     "dev": "python3 -m http.server 8080",
     "start": "python3 -m http.server 8080",
-    "check": "node --check app.js && node --check api/ai.js && node --check api/monitor.js"
+    "check": "node --check app.js && node --check api/ai.js && node --check api/monitor.js && node --check api/data.js && node --check api/files.js && node --check api/briefs.js && node --check api/export.js && node --check api/init.js && node --check api/monitor-run.js && node --check api/_db.js && node --check api/_llm.js && node --check api/_seed.js"
   }
 }

@@ -24,8 +24,13 @@ Add these Environment Variables in Vercel:
 
 - `GEMINI_API_KEY`: your Gemini API key
 - `GEMINI_MODEL`: optional, defaults to `gemini-2.0-flash`
+- `OPENAI_API_KEY`: optional; when present, RAG chat and brief generation use OpenAI first
+- `OPENAI_MODEL`: optional, defaults to `gpt-4.1-mini`
+- `POSTGRES_URL`: required for persistent Vercel Postgres / Neon database storage
 
 The API key must not be committed to Git. The browser calls `/api/ai`, and the Vercel function reads the key from the server-side environment.
+
+After adding `POSTGRES_URL`, open `/api/init` once to create the database tables and seed Sociovestix demo records.
 
 ## Current MVP
 
@@ -38,9 +43,22 @@ The API key must not be committed to Git. The browser calls `/api/ai`, and the V
 - Brief generator with facts, inferences, recommendations, and sources.
 - Chatbot demo that answers in English and separates facts from inferences.
 - Serverless `/api/ai` route for Gemini-backed chat and brief generation.
-- Serverless `/api/monitor` route for website monitoring refreshes.
-- Browser localStorage persistence for companies, updates, people, files, and generated briefs.
+- Serverless `/api/ai` route for OpenAI-backed RAG chat when `OPENAI_API_KEY` exists, with Gemini fallback.
+- Serverless `/api/monitor` route for single website refreshes.
+- Serverless `/api/monitor-run` route for scheduled Wednesday/Friday monitoring.
+- Vercel cron configured for Wednesday and Friday at 00:00 UTC.
+- Postgres tables for companies, sources, updates, people, uploaded files, chunks, and briefs.
+- Browser localStorage fallback when Postgres is not configured.
 - Client-side text extraction for `.txt`, `.md`, `.csv`, and `.json` uploads.
+- `/api/files` indexes uploaded text into chunks for chatbot retrieval context.
+- `/api/briefs` stores generated briefs.
+- `/api/export` exports briefs as Markdown, HTML/print-to-PDF, or Word-compatible `.doc`.
+
+## Monitoring and connectors
+
+Website/news/RSS monitoring is implemented for configured website sources. The monitor crawls the source URL, checks likely newsroom/blog/RSS links, deduplicates updates by content hash, and runs AI summarization for summary, labels, priority, risk categories, facts, inferences, and source citation.
+
+LinkedIn, Instagram, and X are intentionally treated as manual/provider sources in this MVP. Production collection should use authenticated access, an approved social data provider, or manual import/export workflows.
 
 ## Demo data
 
