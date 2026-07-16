@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Personal Market Intelligence MVP</title>
+    <meta
+      name="description"
+      content="Single-user market intelligence dashboard and chatbot MVP for company and client research."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Primary navigation">
+        <div class="brand">
+          <div class="brand-mark">MI</div>
+          <div>
+            <strong>Market Intel</strong>
+            <span>Personal MVP</span>
+          </div>
+        </div>
+        <nav class="nav-list">
+          <button class="nav-item active" data-view="dashboard">Dashboard</button>
+          <button class="nav-item" data-view="updates">Update Feed</button>
+          <button class="nav-item" data-view="companies">Companies</button>
+          <button class="nav-item" data-view="people">People</button>
+          <button class="nav-item" data-view="library">Research Library</button>
+          <button class="nav-item" data-view="briefs">Briefs</button>
+          <button class="nav-item" data-view="chatbot">Chatbot</button>
+        </nav>
+        <div class="schedule-card">
+          <span>Monitoring cadence</span>
+          <strong>Wed + Fri</strong>
+          <p>Next run: Fri, 17 Jul 2026, 08:00</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <label class="search-box">
+            <span>Search</span>
+            <input id="globalSearch" type="search" placeholder="Company, person, risk, update..." />
+          </label>
+          <div class="topbar-actions">
+            <button class="button secondary" id="refreshButton">Refresh sources</button>
+            <div class="run-meta">
+              <span>Last run</span>
+              <strong>Wed, 15 Jul 2026 08:00</strong>
+            </div>
+          </div>
+        </header>
+
+        <section class="view active" id="dashboard" aria-labelledby="dashboard-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Wednesday / Friday review</p>
+              <h1 id="dashboard-title">Sociovestix market intelligence cockpit</h1>
+            </div>
+            <button class="button primary" data-view-jump="chatbot">Ask the research assistant</button>
+          </div>
+
+          <div class="kpi-grid" id="kpiGrid"></div>
+
+          <div class="dashboard-grid">
+            <article class="panel summary-panel">
+              <div class="panel-header">
+                <h2>Intelligence summary</h2>
+                <span class="status-pill high">High focus</span>
+              </div>
+              <div class="summary-block">
+                <h3>What changed</h3>
+                <p>
+                  Sociovestix Labs positions itself around sustainable finance, financial data science,
+                  data quality testing, AI, and executive tracking. The configured LinkedIn profiles
+                  for Andreas Hoepner and Damian Borth should be monitored as relationship context,
+                  while direct LinkedIn collection remains a source-health risk.
+                </p>
+              </div>
+              <div class="summary-columns">
+                <div>
+                  <h3>Why it matters</h3>
+                  <p>
+                    The company sits at the intersection of ESG regulation, asset-owner workflows,
+                    AI-enabled data quality, and financial research automation.
+                  </p>
+                </div>
+                <div>
+                  <h3>Follow-up angles</h3>
+                  <ul class="compact-list">
+                    <li>Map EU sustainable finance themes to current product messaging.</li>
+                    <li>Validate data-provider due diligence pain points.</li>
+                    <li>Prepare AI governance questions for executive meetings.</li>
+                  </ul>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel risk-panel">
+              <div class="panel-header">
+                <h2>Risk spotlight</h2>
+                <span class="status-pill">6 categories</span>
+              </div>
+              <div class="risk-list" id="riskList"></div>
+            </article>
+          </div>
+
+          <div class="split-grid">
+            <article class="panel">
+              <div class="panel-header">
+                <h2>Latest updates</h2>
+                <button class="text-button" data-view-jump="updates">View all</button>
+              </div>
+              <div class="update-list" id="latestUpdates"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-header">
+                <h2>Quick actions</h2>
+              </div>
+              <div class="quick-actions">
+                <button class="action-tile" data-action="addCompany">Add company</button>
+                <button class="action-tile" data-view-jump="library">Upload research file</button>
+                <button class="action-tile" data-view-jump="briefs">Generate brief</button>
+                <button class="action-tile" data-view-jump="chatbot">Ask chatbot</button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="updates" aria-labelledby="updates-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Captured updates</p>
+              <h1 id="updates-title">Update feed</h1>
+            </div>
+            <button class="button secondary" id="markReviewed">Mark visible as reviewed</button>
+          </div>
+          <div class="filter-bar">
+            <select id="companyFilter" aria-label="Company filter"></select>
+            <select id="sourceFilter" aria-label="Source filter"></select>
+            <select id="priorityFilter" aria-label="Priority filter"></select>
+            <select id="statusFilter" aria-label="Status filter"></select>
+          </div>
+          <div class="update-feed" id="updateFeed"></div>
+        </section>
+
+        <section class="view" id="companies" aria-labelledby="companies-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Monitoring database</p>
+              <h1 id="companies-title">Companies</h1>
+            </div>
+            <button class="button primary" id="openCompanyForm">Add company</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Company</th>
+                  <th>Type</th>
+                  <th>Industry</th>
+                  <th>Source health</th>
+                  <th>High priority</th>
+                  <th>ESG/risk</th>
+                  <th>Last checked</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="companyTable"></tbody>
+            </table>
+          </div>
+          <article class="panel workspace-panel">
+            <div class="panel-header">
+              <h2>Company workspace: Sociovestix Labs</h2>
+              <span class="status-pill">Prospect</span>
+            </div>
+            <div class="workspace-tabs">
+              <button class="tab active" data-workspace-tab="overview">Overview</button>
+              <button class="tab" data-workspace-tab="sources">Sources</button>
+              <button class="tab" data-workspace-tab="research">Research angles</button>
+            </div>
+            <div class="workspace-content" id="workspaceContent"></div>
+          </article>
+        </section>
+
+        <section class="view" id="people" aria-labelledby="people-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Client intelligence</p>
+              <h1 id="people-title">People profiles</h1>
+            </div>
+          </div>
+          <div class="people-grid" id="peopleGrid"></div>
+        </section>
+
+        <section class="view" id="library" aria-labelledby="library-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Historical research</p>
+              <h1 id="library-title">Research library</h1>
+            </div>
+            <label class="button primary file-button">
+              Upload file
+              <input id="fileInput" type="file" multiple />
+            </label>
+          </div>
+          <div class="library-grid" id="libraryGrid"></div>
+        </section>
+
+        <section class="view" id="briefs" aria-labelledby="briefs-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Reusable outputs</p>
+              <h1 id="briefs-title">Brief generator</h1>
+            </div>
+            <button class="button primary" id="generateBrief">Generate one-page brief</button>
+          </div>
+          <div class="brief-layout">
+            <article class="panel">
+              <h2>Brief settings</h2>
+              <div class="form-grid">
+                <label>Target <select id="briefTarget"></select></label>
+                <label>Focus <select id="briefFocus"></select></label>
+                <label>Output <select id="briefType"></select></label>
+              </div>
+            </article>
+            <article class="panel brief-output" id="briefOutput"></article>
+          </div>
+        </section>
+
+        <section class="view" id="chatbot" aria-labelledby="chatbot-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Source-backed synthesis</p>
+              <h1 id="chatbot-title">Research chatbot</h1>
+            </div>
+          </div>
+          <div class="chat-layout">
+            <aside class="panel chat-context">
+              <h2>Context scope</h2>
+              <label><input type="radio" name="scope" value="global" checked /> Global research</label>
+              <label><input type="radio" name="scope" value="company" /> Sociovestix company workspace</label>
+              <label><input type="radio" name="scope" value="person" /> Person profile</label>
+              <div class="source-note">
+                <strong>Answer rules</strong>
+                <span>English only, cite sources, separate facts and inferences.</span>
+              </div>
+            </aside>
+            <article class="panel chat-panel">
+              <div class="messages" id="chatMessages"></div>
+              <form class="chat-form" id="chatForm">
+                <input
+                  id="chatInput"
+                  type="text"
+                  placeholder="Ask for ESG risks, meeting brief, pain points, or source gaps..."
+                  autocomplete="off"
+                />
+                <button class="button primary" type="submit">Send</button>
+              </form>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="companyDialog">
+      <form method="dialog" class="dialog-card" id="companyForm">
+        <div class="panel-header">
+          <h2>Add monitored company</h2>
+          <button class="icon-button" value="cancel" aria-label="Close">x</button>
+        </div>
+        <label>Company name <input name="name" required placeholder="Company name" /></label>
+        <label>Website <input name="website" type="url" placeholder="https://example.com" /></label>
+        <label>Company type
+          <select name="type">
+            <option value="prospect">Prospect</option>
+            <option value="existing client">Existing client</option>
+          </select>
+        </label>
+        <label>Industry <input name="industry" placeholder="Industry" /></label>
+        <button class="button primary" value="default">Save company</button>
+      </form>
+    </dialog>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
