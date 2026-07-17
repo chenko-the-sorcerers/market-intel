@@ -444,6 +444,18 @@ p {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.scrape-form {
+  display: grid;
+  gap: 12px;
+}
+
+.scrape-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .action-tile {
   min-height: 86px;
   background: var(--surface-soft);
@@ -523,6 +535,18 @@ th {
   margin-bottom: 8px;
 }
 
+.personal-intel-panel {
+  align-items: center;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.personal-intel-panel p {
+  max-width: 760px;
+}
+
 .profile-link {
   display: inline-block;
   margin-bottom: 12px;
@@ -559,6 +583,55 @@ th {
   border-top: 1px solid var(--line);
   padding-top: 14px;
   margin-top: 14px;
+}
+
+.dossier-cover {
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 20px;
+  padding-bottom: 18px;
+}
+
+.dossier-cover h2 {
+  margin-bottom: 6px;
+}
+
+.dossier-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.dossier-meta span {
+  background: #eef5f2;
+  border: 1px solid #c8ddd5;
+  border-radius: 999px;
+  color: #275145;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.dossier-grid,
+.insight-columns {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.insight-columns {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.insight-columns > div,
+.dossier-grid > div {
+  background: #fbfcfd;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.insight-columns h4 {
+  margin: 0 0 8px;
 }
 
 .chat-context {
@@ -680,6 +753,8 @@ dialog {
   .split-grid,
   .chat-layout,
   .brief-layout,
+  .dossier-grid,
+  .insight-columns,
   .summary-columns,
   .people-grid,
   .library-grid,
@@ -695,6 +770,7 @@ dialog {
 
   .topbar,
   .section-heading,
+  .personal-intel-panel,
   .topbar-actions {
     align-items: stretch;
     flex-direction: column;

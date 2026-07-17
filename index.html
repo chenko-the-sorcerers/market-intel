@@ -116,12 +116,40 @@
             </article>
             <article class="panel">
               <div class="panel-header">
+                <h2>Scrape a link</h2>
+              </div>
+              <form class="scrape-form" id="scrapeForm">
+                <label>
+                  URL
+                  <input id="scrapeUrl" name="url" type="url" placeholder="https://company.com/news" required />
+                </label>
+                <label>
+                  Company
+                  <select id="scrapeCompany" name="company"></select>
+                </label>
+                <label>
+                  Source type
+                  <select id="scrapeSourceType" name="sourceType">
+                    <option value="website">Website</option>
+                    <option value="news">News</option>
+                    <option value="rss">RSS</option>
+                    <option value="linkedin">LinkedIn manual/import</option>
+                    <option value="instagram">Instagram manual/import</option>
+                    <option value="x">X/Twitter manual/import</option>
+                  </select>
+                </label>
+                <button class="button primary" type="submit">Scrape URL</button>
+              </form>
+            </article>
+            <article class="panel">
+              <div class="panel-header">
                 <h2>Quick actions</h2>
               </div>
               <div class="quick-actions">
                 <button class="action-tile" data-action="addCompany">Add company</button>
                 <button class="action-tile" data-view-jump="library">Upload research file</button>
                 <button class="action-tile" data-view-jump="briefs">Generate brief</button>
+                <button class="action-tile" data-person-dossier="Andreas Hoepner">Personal intelligence</button>
                 <button class="action-tile" data-view-jump="chatbot">Ask chatbot</button>
               </div>
             </article>
@@ -194,7 +222,22 @@
               <p class="eyebrow">Client intelligence</p>
               <h1 id="people-title">People profiles</h1>
             </div>
+            <button class="button primary" data-person-dossier="Andreas Hoepner">Generate personal dossier</button>
           </div>
+          <article class="panel personal-intel-panel">
+            <div>
+              <p class="eyebrow">New output</p>
+              <h2>Personal intelligence dossier</h2>
+              <p>
+                Meeting-ready person profile with source-backed facts, inferences, pain points,
+                aspirations, engagement approach, discovery questions, and verification notes.
+              </p>
+            </div>
+            <div class="card-actions">
+              <button type="button" data-person-dossier="Andreas Hoepner">Andreas Hoepner</button>
+              <button type="button" data-person-dossier="Damian Borth">Damian Borth</button>
+            </div>
+          </article>
           <div class="people-grid" id="peopleGrid"></div>
         </section>
 
@@ -218,7 +261,7 @@
               <p class="eyebrow">Reusable outputs</p>
               <h1 id="briefs-title">Brief generator</h1>
             </div>
-            <button class="button primary" id="generateBrief">Generate one-page brief</button>
+            <button class="button primary" id="generateBrief">Generate intelligence</button>
           </div>
           <div class="brief-layout">
             <article class="panel">

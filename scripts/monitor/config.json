@@ -1,0 +1,33 @@
+{
+  "maxLinksPerSource": 10,
+  "statePath": ".monitor-state.json",
+  "outputPath": "outputs/monitor-updates.json",
+  "sources": [
+    {
+      "company_id": "1e404b41-55b5-4b18-906c-a6a79405791a",
+      "company_name": "Sociovestix Labs",
+      "source_id": "sociovestix-website",
+      "source_type": "website",
+      "url": "https://sociovestix.com/",
+      "fetch_strategy": "crawl"
+    },
+    {
+      "company_id": "1e404b41-55b5-4b18-906c-a6a79405791a",
+      "company_name": "Sociovestix Labs",
+      "source_id": "andreas-hoepner-linkedin",
+      "source_type": "linkedin",
+      "url": "https://www.linkedin.com/in/andreashoepner/",
+      "fetch_strategy": "manual_upload",
+      "monitoring_status": "manual"
+    },
+    {
+      "company_id": "1e404b41-55b5-4b18-906c-a6a79405791a",
+      "company_name": "Sociovestix Labs",
+      "source_id": "damian-borth-linkedin",
+      "source_type": "linkedin",
+      "url": "https://www.linkedin.com/in/damianborth/",
+      "fetch_strategy": "manual_upload",
+      "monitoring_status": "manual"
+    }
+  ]
+}

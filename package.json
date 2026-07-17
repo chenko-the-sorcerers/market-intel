@@ -10,6 +10,10 @@
     "build": "npm run check && node scripts/build-static.mjs",
     "dev": "python3 -m http.server 8080",
     "start": "python3 -m http.server 8080",
-    "check": "node --check app.js && node --check api/ai.js && node --check api/health.js && node --check api/monitor.js && node --check api/data.js && node --check api/files.js && node --check api/briefs.js && node --check api/export.js && node --check api/init.js && node --check api/monitor-run.js && node --check api/_db.js && node --check api/_gas.js && node --check api/_llm.js && node --check api/_seed.js"
+    "monitor:local": "node scripts/monitor/local-monitor.mjs",
+    "monitor:dry": "node scripts/monitor/local-monitor.mjs --dry-run",
+    "monitor:gas": "node scripts/monitor/local-monitor.mjs --save-gas",
+    "monitor:browser": "node scripts/monitor/local-monitor.mjs --mode browser",
+    "check": "node --check app.js && node --check api/ai.js && node --check api/health.js && node --check api/monitor.js && node --check api/scrape-url.js && node --check api/data.js && node --check api/files.js && node --check api/briefs.js && node --check api/export.js && node --check api/init.js && node --check api/monitor-run.js && node --check api/_db.js && node --check api/_gas.js && node --check api/_llm.js && node --check api/_seed.js && node --check api/_templates.js && node --check scripts/monitor/crawler.mjs && node --check scripts/monitor/browser-page.mjs && node --check scripts/monitor/local-monitor.mjs && node --check scripts/monitor/manual-social-import.mjs"
   }
 }

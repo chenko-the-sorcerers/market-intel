@@ -1,6 +1,13 @@
 import { sql } from "@vercel/postgres";
 import { ensureSchema, hashText, hasDatabase, seedDatabase } from "./_db.js";
-import { getGasMonitorSources, hasGas, insertGasUpdates, seedGasData } from "./_gas.js";
+import {
+  getGasMonitorSources,
+  hasGas,
+  insertGasUpdates,
+  saveGasMonitoringRun,
+  saveGasMonitoringRunItem,
+  seedGasData,
+} from "./_gas.js";
 import { summarizeUpdate } from "./_llm.js";
 
 const MAX_LINKS_PER_SOURCE = 8;
@@ -13,17 +20,67 @@ export default async function handler(request, response) {
   try {
     if (hasGas()) {
       await seedGasData();
+      const startedAt = new Date().toISOString();
+      const audit = { enabled: true, warning: "" };
+      let run = null;
+      try {
+        run = await saveGasMonitoringRun({
+          run_type: request.method === "GET" ? "scheduled_or_manual_get" : "manual_post",
+          scheduled_for: "",
+          started_at: startedAt,
+          status: "running",
+          summary: "Monitoring run started.",
+        });
+      } catch (error) {
+        audit.enabled = false;
+        audit.warning = error.message;
+      }
       const sources = await getGasMonitorSources();
       const discovered = await discoverUpdates(sources);
       const saved = await insertGasUpdates({ updates: discovered.updates });
+      const insertedCount = saved.inserted?.length || 0;
+      const dedupedCount = saved.deduped?.length || 0;
+      const finishedAt = new Date().toISOString();
+      const updatesBySource = discovered.updates.reduce((counts, update) => {
+        counts[update.source_id] = (counts[update.source_id] || 0) + 1;
+        return counts;
+      }, {});
+      if (run) {
+        await Promise.all(
+          sources.map((source) => {
+            const error = discovered.errors.find((item) => item.source === source.url);
+            return saveGasMonitoringRunItem({
+              monitoring_run_id: run.id,
+              company_id: source.company_id,
+              source_id: source.source_id,
+              status: error ? "failed" : "success",
+              updates_found: updatesBySource[source.source_id] || 0,
+              error_message: error?.error || "",
+              started_at: startedAt,
+              finished_at: finishedAt,
+            });
+          }),
+        );
+        await saveGasMonitoringRun({
+          id: run.id,
+          finished_at: finishedAt,
+          status: discovered.errors.length ? "partial_success" : "success",
+          companies_checked: new Set(sources.map((source) => source.company_id)).size,
+          updates_found: insertedCount,
+          errors_count: discovered.errors.length,
+          summary: `Checked ${sources.length} source(s). Inserted ${insertedCount}, deduped ${dedupedCount}.`,
+        });
+      }
       return response.status(200).json({
         ok: true,
         storage: "gas",
         checked_sources: sources.length,
-        inserted: saved.inserted?.length || 0,
-        deduped: saved.deduped?.length || 0,
+        inserted: insertedCount,
+        deduped: dedupedCount,
         errors: discovered.errors,
         updates: saved.inserted || [],
+        monitoring_run_id: run?.id || null,
+        audit,
       });
     }
 

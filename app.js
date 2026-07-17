@@ -100,7 +100,7 @@ const seedPeople = [
     url: sources.andreas,
     confidence: "Medium",
     facts:
-      "LinkedIn profile configured by researcher. Sociovestix site links AH social profile and emphasizes sustainable finance and financial data science.",
+      "Profile source tracked as a manual/provider input. Sociovestix context emphasizes sustainable finance, financial data science, and ESG data quality.",
     inferences:
       "Likely meeting angles: ESG data quality, asset-owner sustainability workflows, EU sustainable finance expectations, and climate-transition analytics.",
     questions: [
@@ -116,7 +116,7 @@ const seedPeople = [
     url: sources.damian,
     confidence: "Medium-high",
     facts:
-      "LinkedIn profile configured by researcher. Public sources describe him as an AI and machine-learning professor and Sociovestix Laboratories co-founder.",
+      "Profile source tracked as a manual/provider input. Public context connects him with AI, machine learning, and Sociovestix Laboratories.",
     inferences:
       "Likely meeting angles: deep-learning productization, AI governance, financial time-series modeling, and defensible AI in regulated data workflows.",
     questions: [
@@ -154,6 +154,7 @@ const riskScores = [
 ];
 
 const STORE_KEY = "market-intel-mvp-state-v2";
+const CHAT_THREAD_KEY = "market-intel-active-chat-thread";
 
 const defaultState = {
   companies: seedCompanies,
@@ -185,6 +186,7 @@ let people = state.people;
 let library = state.library;
 let briefs = state.briefs;
 let sourcesState = state.sources || [];
+let activeChatThreadId = localStorage.getItem(CHAT_THREAD_KEY) || "";
 
 function persistState() {
   state = { companies, updates, people, library, briefs, sources: sourcesState };
@@ -210,6 +212,7 @@ const selectors = {
   briefOutput: document.querySelector("#briefOutput"),
   chatMessages: document.querySelector("#chatMessages"),
   toast: document.querySelector("#toast"),
+  scrapeCompany: document.querySelector("#scrapeCompany"),
 };
 
 let toastTimeout;
@@ -250,11 +253,23 @@ function getKpis() {
 function refreshAllViews() {
   renderKpis();
   renderFilters();
+  renderScrapeCompanies();
   renderUpdates();
   renderCompanies();
   renderPeople();
   renderLibrary();
+  initBriefControls();
   persistState();
+}
+
+function renderScrapeCompanies() {
+  if (!selectors.scrapeCompany) return;
+  selectors.scrapeCompany.innerHTML = companies
+    .map((company, index) => {
+      const id = company.id || company.name;
+      return `<option value="${id}" ${index === 0 ? "selected" : ""}>${company.name}</option>`;
+    })
+    .join("");
 }
 
 function openCompanyDialog() {
@@ -448,7 +463,10 @@ function renderWorkspace(tab = "overview") {
               <article class="person-card">
                 <h2>${person.name}</h2>
                 <p>${person.role}</p>
-                <p>${person.inferences}</p>
+                <p>${personMeetingAngles(person)}</p>
+                <div class="card-actions">
+                  <button type="button" data-person-dossier="${person.name}">Open personal intelligence</button>
+                </div>
               </article>
             `,
           )
@@ -505,17 +523,37 @@ function renderPeople() {
           <h2>${person.name}</h2>
           <p><strong>${person.role}</strong><br>${person.company}</p>
           <a class="profile-link" href="${person.url}" target="_blank" rel="noreferrer">Open configured profile</a>
-          <div class="tag-row">${tag(`Confidence: ${person.confidence}`)} ${tag("Facts + inferences separated")}</div>
-          <h3>Facts</h3>
-          <p>${person.facts}</p>
-          <h3>Inferences</h3>
-          <p>${person.inferences}</p>
+          <div class="tag-row">${tag(`Confidence: ${person.confidence}`)} ${tag("Personal intelligence ready")}</div>
+          <h3>Profile signal</h3>
+          <p>${personProfileSignal(person)}</p>
+          <h3>Meeting angles</h3>
+          <p>${personMeetingAngles(person)}</p>
           <h3>Discovery questions</h3>
           <ul class="compact-list">${person.questions.map((q) => `<li>${q}</li>`).join("")}</ul>
+          <div class="card-actions">
+            <button type="button" data-person-dossier="${person.name}">Generate personal intelligence dossier</button>
+          </div>
         </article>
       `,
     )
     .join("");
+}
+
+function personProfileSignal(person) {
+  const raw = String(person.facts || "");
+  if (/LinkedIn profile configured by researcher/i.test(raw)) {
+    if (/Damian Borth/i.test(person.name || "")) {
+      return "Profile source is tracked as a manual/provider input. Public context connects him with AI, machine learning, and Sociovestix Laboratories.";
+    }
+    return "Profile source is tracked as a manual/provider input. Sociovestix context emphasizes sustainable finance, financial data science, and ESG data quality.";
+  }
+  return raw || "Profile source is available, but key facts should be verified before outreach.";
+}
+
+function personMeetingAngles(person) {
+  const raw = String(person.inferences || "");
+  if (/Likely meeting angles:/i.test(raw)) return raw.replace(/^Likely meeting angles:\s*/i, "");
+  return raw || "Use public updates, profile context, and uploaded notes to identify the strongest meeting angle.";
 }
 
 function renderLibrary() {
@@ -534,8 +572,14 @@ function renderLibrary() {
 }
 
 function renderBrief({ notify = true } = {}) {
+  const request = getBriefRequest();
+  if (request.isPersona) {
+    renderPersonalIntelligenceDossier(request, notify);
+    return;
+  }
+
   selectors.briefOutput.innerHTML = `
-    <h2>One-page meeting brief: Sociovestix Labs</h2>
+    <h2>${request.type}: ${request.target}</h2>
     <p><strong>Purpose:</strong> Prepare a source-backed discovery conversation on ESG data quality and AI-enabled financial research workflows.</p>
     <section>
       <h3>Facts from sources</h3>
@@ -568,11 +612,134 @@ function renderBrief({ notify = true } = {}) {
   if (notify) showToast("Brief generated.");
 }
 
-function renderAiBrief(text) {
+function renderPersonalIntelligenceDossier(request, notify = true) {
+  const person =
+    people.find((item) => item.name === request.target) ||
+    people.find((item) => item.company === request.target) ||
+    people[0] ||
+    {};
+  const company = companies.find((item) => item.name === person.company) || companies[0] || {};
+  const personUpdates = updates.filter((update) => update.company === person.company).slice(0, 4);
+  const credibilitySignals = [
+    personProfileSignal(person),
+    `${person.company || company.name || "Primary company"} context connects this person to sustainable finance, AI, or market intelligence workflows.`,
+    `Source confidence: ${person.confidence || "Medium"}. Treat profile-derived details as verification targets before external use.`,
+  ];
+
+  selectors.briefOutput.innerHTML = `
+    <div class="dossier-cover">
+      <p class="eyebrow">Personal intelligence dossier</p>
+      <h2>${person.name || request.target}</h2>
+      <p>${person.role || "Role to verify"} · ${person.company || company.name || "Affiliation to verify"}</p>
+      <div class="dossier-meta">
+        <span>Prepared ${new Date().toLocaleDateString("en-GB")}</span>
+        <span>Confidence ${person.confidence || "Medium"}</span>
+        <span>Source-backed meeting prep</span>
+      </div>
+    </div>
+
+    <section class="dossier-grid">
+      <div>
+        <h3>Profile Snapshot</h3>
+        <ul class="compact-list">
+          <li><strong>Current role:</strong> ${person.role || "Needs verification from profile and institutional sources."}</li>
+          <li><strong>Affiliation:</strong> ${person.company || company.name || "Unknown"}</li>
+          <li><strong>Location:</strong> ${company.country || "To verify"}</li>
+          <li><strong>Primary source:</strong> <a href="${person.url || "#"}" target="_blank" rel="noreferrer">Configured profile</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Strategic Context</h3>
+        <p>${personMeetingAngles(person)}</p>
+      </div>
+    </section>
+
+    <section>
+      <h3>Career & Credibility Signals</h3>
+      <ul class="compact-list">${credibilitySignals.map((item) => `<li>${item}</li>`).join("")}</ul>
+    </section>
+
+    <section>
+      <h3>Likely Pain Points</h3>
+      <div class="insight-columns">
+        <div>
+          <h4>Professional</h4>
+          <p>Needs credible evidence, clean source trails, and rapid synthesis across public signals, social/profile context, and historical notes.</p>
+        </div>
+        <div>
+          <h4>Strategic</h4>
+          <p>May care about data reliability, AI auditability, ESG methodology quality, and how intelligence is translated into buyer-ready action.</p>
+        </div>
+        <div>
+          <h4>Relationship</h4>
+          <p>Likely responds better to precise, source-aware questions than broad product claims. Avoid overstating scraped social data.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h3>Aspirations & Vision</h3>
+      <p>Inference: this person may be motivated by making financial data science more useful, trustworthy, and operationally adopted by institutions. Validate this in conversation.</p>
+    </section>
+
+    <section>
+      <h3>Engagement Approach</h3>
+      <ul class="compact-list">
+        <li>Lead with a concise observation from verified public sources.</li>
+        <li>Ask about current bottlenecks before introducing automation or AI claims.</li>
+        <li>Show how the dashboard separates facts, inferences, and recommendations.</li>
+        <li>Position manual LinkedIn/social inputs as compliant provider/manual connectors, not brittle scraping.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>Discovery Questions</h3>
+      <ul class="compact-list">${(person.questions || []).map((question) => `<li>${question}</li>`).join("")}</ul>
+    </section>
+
+    <section>
+      <h3>Recent Context To Bring Into The Meeting</h3>
+      ${
+        personUpdates.length
+          ? `<ul class="compact-list">${personUpdates
+              .map((update) => `<li><strong>${update.title}</strong> - ${update.summary}</li>`)
+              .join("")}</ul>`
+          : "<p>No stored updates linked yet. Run monitoring or scrape a relevant URL before using this dossier externally.</p>"
+      }
+    </section>
+
+    <section>
+      <h3>Source Notes</h3>
+      <p>Sources: configured profile URL, ${company.website ? `<a href="${company.website}" target="_blank" rel="noreferrer">${company.name || "company"} website</a>` : "company website"}, stored updates, uploaded notes, and generated briefs. Facts and inferences should be rechecked before outreach.</p>
+    </section>
+
+    <section>
+      <h3>Export</h3>
+      <div class="card-actions">
+        <button type="button" data-export-local="md">Download Markdown</button>
+        <button type="button" data-export-local="html">Download HTML / Print PDF</button>
+      </div>
+    </section>
+  `;
+  if (notify) showToast("Personal intelligence dossier generated.");
+}
+
+function openPersonalDossier(targetName) {
+  switchView("briefs");
+  const target = document.querySelector("#briefTarget");
+  const focus = document.querySelector("#briefFocus");
+  const type = document.querySelector("#briefType");
+  if (target) target.value = targetName || people[0]?.name || target.value;
+  if (focus) focus.value = "Personal intelligence";
+  if (type) type.value = "Persona / client intelligence dossier";
+  renderBrief();
+}
+
+function renderAiBrief(text, title = "AI-generated brief") {
   briefs = [
     {
       id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-      title: "AI-generated Sociovestix brief",
+      title,
       createdAt: new Date().toISOString(),
       text,
     },
@@ -580,7 +747,7 @@ function renderAiBrief(text) {
   ];
   persistState();
   selectors.briefOutput.innerHTML = `
-    <h2>AI-generated brief</h2>
+    <h2>${title}</h2>
     <section>
       ${formatAiText(text)}
     </section>
@@ -593,6 +760,34 @@ function renderAiBrief(text) {
     </section>
   `;
   showToast("AI brief generated.");
+}
+
+function getBriefRequest() {
+  const target = document.querySelector("#briefTarget")?.value || "Sociovestix Labs";
+  const focus = document.querySelector("#briefFocus")?.value || "ESG risk and AI opportunity";
+  const type = document.querySelector("#briefType")?.value || "One-page brief";
+  const isPersona =
+    /persona|client|personal|person/i.test(type) ||
+    people.some((person) => person.name === target);
+  return { target, focus, type, isPersona };
+}
+
+function buildBriefQuestion(request) {
+  if (request.isPersona) {
+    return [
+      `Generate a personal intelligence dossier for ${request.target}.`,
+      `Focus: ${request.focus}.`,
+      "Mirror the Emma Sjostrom-style client intelligence structure: profile snapshot, role and affiliation, career trajectory, research/interests, credibility signals, likely pain points, aspirations, engagement recommendations, discovery questions, and source notes.",
+      "Write in English. Separate facts from inferences. Include confidence caveats and source citations. Do not invent dates, titles, metrics, or quotes.",
+    ].join(" ");
+  }
+
+  return [
+    `Generate a ${request.type} for ${request.target}.`,
+    `Focus on ${request.focus}.`,
+    "Include facts, recent updates, inferences, likely pain points, suggested pitch angle, discovery questions, recommendations, and source citations.",
+    "Separate facts, inferences, and recommendations.",
+  ].join(" ");
 }
 
 function formatAiText(text) {
@@ -771,11 +966,23 @@ function hasRisk(labels = []) {
 }
 
 async function askAi(task, question) {
-  return postJson("/api/ai", {
+  const scopeType = document.querySelector("input[name='scope']:checked")?.value || "global";
+  const primaryCompany = companies[0] || {};
+  const primaryPerson = people.find((person) => person.company === primaryCompany.name) || people[0] || {};
+  const result = await postJson("/api/ai", {
     task,
     question,
+    threadId: task === "chat" ? activeChatThreadId : "",
+    scopeType,
+    companyId: scopeType === "global" ? "" : primaryCompany.id || "",
+    personId: scopeType === "person" ? primaryPerson.id || "" : "",
     context: compactContext(),
   });
+  if (task === "chat" && result.threadId) {
+    activeChatThreadId = result.threadId;
+    localStorage.setItem(CHAT_THREAD_KEY, activeChatThreadId);
+  }
+  return result;
 }
 
 async function monitorCompany(company) {
@@ -816,8 +1023,35 @@ async function runBackendMonitor() {
   return result;
 }
 
+async function scrapeUrlFromForm(form) {
+  const formData = new FormData(form);
+  const selectedCompany = companies.find(
+    (company) => String(company.id || company.name) === String(formData.get("company")),
+  ) || companies[0];
+  const url = String(formData.get("url") || "").trim();
+  const sourceType = String(formData.get("sourceType") || "website");
+  if (!url) return;
+
+  showToast("Scraping URL...");
+  const result = await postJson("/api/scrape-url", {
+    url,
+    company_id: selectedCompany?.id || "manual-company",
+    company_name: selectedCompany?.name || "Manual company",
+    source_id: `${sourceType}-manual-url`,
+    source_type: sourceType,
+  });
+  await syncDatabase({ silent: true });
+  showToast(result.inserted ? "URL scraped and saved." : "URL already exists. No duplicate saved.");
+}
+
 function bindEvents() {
   selectors.navItems.forEach((item) => item.addEventListener("click", () => switchView(item.dataset.view)));
+  document.querySelectorAll("input[name='scope']").forEach((input) =>
+    input.addEventListener("change", () => {
+      activeChatThreadId = "";
+      localStorage.removeItem(CHAT_THREAD_KEY);
+    }),
+  );
   document.querySelectorAll("[data-view-jump]").forEach((button) =>
     button.addEventListener("click", () => {
       switchView(button.dataset.viewJump);
@@ -828,6 +1062,16 @@ function bindEvents() {
     }),
   );
   document.querySelector("#syncButton").addEventListener("click", () => syncDatabase());
+  document.querySelector("#scrapeForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      await scrapeUrlFromForm(event.currentTarget);
+      event.currentTarget.reset();
+      renderScrapeCompanies();
+    } catch (error) {
+      showToast(`Scrape failed: ${error.message}`);
+    }
+  });
   [selectors.companyFilter, selectors.sourceFilter, selectors.priorityFilter, selectors.statusFilter].forEach((select) =>
     select.addEventListener("change", renderUpdates),
   );
@@ -908,6 +1152,7 @@ function bindEvents() {
     const saveButton = event.target.closest("[data-save]");
     const reviewButton = event.target.closest("[data-review]");
     const briefButton = event.target.closest("[data-brief]");
+    const personDossierButton = event.target.closest("[data-person-dossier]");
     const exportButton = event.target.closest("[data-export-local]");
 
     if (viewButton) {
@@ -946,6 +1191,11 @@ function bindEvents() {
     if (briefButton) {
       switchView("briefs");
       renderBrief();
+      return;
+    }
+
+    if (personDossierButton) {
+      openPersonalDossier(personDossierButton.dataset.personDossier);
       return;
     }
 
@@ -989,23 +1239,22 @@ function bindEvents() {
     if (files.length) showToast(`${files.length} file(s) added to research library.`);
   });
   document.querySelector("#generateBrief").addEventListener("click", async () => {
+    const request = getBriefRequest();
+    const question = buildBriefQuestion(request);
+    const title = `${request.type}: ${request.target}`;
     renderBrief();
     try {
       const result = await postJson("/api/briefs", {
-        brief_type: document.querySelector("#briefType").value,
-        title: `${document.querySelector("#briefType").value}: Sociovestix Labs`,
-        question:
-          "Generate a one-page meeting brief for Sociovestix Labs. Focus on ESG risk, AI opportunity, recent updates, likely pain points, suggested pitch angle, discovery questions, and sources. Separate facts, inferences, and recommendations.",
+        brief_type: request.type,
+        title,
+        question,
       });
       briefs = [result.brief, ...briefs];
-      renderAiBrief(result.brief.body_markdown);
+      renderAiBrief(result.brief.body_markdown, title);
     } catch (error) {
       try {
-        const result = await askAi(
-          "brief",
-          "Generate a one-page meeting brief for Sociovestix Labs. Focus on ESG risk, AI opportunity, recent updates, likely pain points, suggested pitch angle, discovery questions, and sources. Separate facts, inferences, and recommendations.",
-        );
-        renderAiBrief(result.text);
+        const result = await askAi("brief", question);
+        renderAiBrief(result.text, title);
       } catch {
         showToast("AI/DB env not configured yet. Showing local brief.");
       }
@@ -1053,19 +1302,24 @@ async function extractFileText(file) {
 }
 
 function initBriefControls() {
+  const companyOptions = companies.map((company) => `<option>${company.name}</option>`).join("");
+  const peopleOptions = people.map((person) => `<option>${person.name}</option>`).join("");
   document.querySelector("#briefTarget").innerHTML = `
-    <option>Sociovestix Labs</option>
-    <option>Andreas Hoepner</option>
-    <option>Damian Borth</option>
+    ${companyOptions}
+    ${peopleOptions}
   `;
   document.querySelector("#briefFocus").innerHTML = `
     <option>ESG risk and AI opportunity</option>
     <option>Company background</option>
+    <option>Personal intelligence</option>
+    <option>Career and credibility signals</option>
     <option>Person pain points</option>
     <option>Discovery questions</option>
   `;
   document.querySelector("#briefType").innerHTML = `
     <option>One-page brief</option>
+    <option>Persona / client intelligence dossier</option>
+    <option>Company intelligence report</option>
     <option>Full research brief</option>
     <option>ESG/risk memo</option>
     <option>Meeting prep note</option>
@@ -1075,6 +1329,7 @@ function initBriefControls() {
 renderKpis();
 renderRisks();
 renderFilters();
+renderScrapeCompanies();
 renderUpdates();
 renderCompanies();
 renderWorkspace();

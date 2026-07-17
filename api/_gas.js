@@ -76,6 +76,31 @@ export async function getGasMonitorSources() {
   return data.sources || [];
 }
 
+export async function saveGasMonitoringRun(payload) {
+  const data = await gasRequest("saveMonitoringRun", payload);
+  return data.run;
+}
+
+export async function saveGasMonitoringRunItem(payload) {
+  const data = await gasRequest("saveMonitoringRunItem", payload);
+  return data.item;
+}
+
+export async function saveGasChatThread(payload) {
+  const data = await gasRequest("saveChatThread", payload);
+  return data.thread;
+}
+
+export async function saveGasChatMessage(payload) {
+  const data = await gasRequest("saveChatMessage", payload);
+  return data.message;
+}
+
+export async function getGasChatThreads(payload = {}) {
+  const data = await gasRequest("getChatThreads", payload);
+  return data.threads || [];
+}
+
 export function normalizeGasData(data) {
   return {
     companies: data.companies || [],
@@ -85,5 +110,11 @@ export function normalizeGasData(data) {
     library: data.library || data.files || [],
     chunks: data.chunks || [],
     briefs: data.briefs || [],
+    monitoring_runs: data.monitoring_runs || [],
+    monitoring_run_items: data.monitoring_run_items || [],
+    chat_threads: data.chat_threads || [],
+    chat_messages: data.chat_messages || [],
+    labels: data.labels || [],
+    update_labels: data.update_labels || [],
   };
 }

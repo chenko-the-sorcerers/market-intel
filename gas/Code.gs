@@ -86,6 +86,33 @@ const SHEETS = {
   ],
   document_chunks: ["id", "file_id", "chunk_index", "chunk_text", "token_estimate", "created_at"],
   briefs: ["id", "company_id", "person_id", "brief_type", "title", "body_markdown", "sources", "created_at"],
+  monitoring_runs: [
+    "id",
+    "run_type",
+    "scheduled_for",
+    "started_at",
+    "finished_at",
+    "status",
+    "companies_checked",
+    "updates_found",
+    "errors_count",
+    "summary",
+  ],
+  monitoring_run_items: [
+    "id",
+    "monitoring_run_id",
+    "company_id",
+    "source_id",
+    "status",
+    "updates_found",
+    "error_message",
+    "started_at",
+    "finished_at",
+  ],
+  chat_threads: ["id", "scope_type", "company_id", "person_id", "title", "created_at", "updated_at"],
+  chat_messages: ["id", "chat_thread_id", "role", "content", "source_refs", "created_at"],
+  labels: ["id", "name", "label_type", "description", "created_at"],
+  update_labels: ["update_id", "label_id", "confidence", "created_at"],
 };
 
 function doGet() {
@@ -108,6 +135,11 @@ function doPost(e) {
     if (action === "saveBrief") return json(saveBrief(payload));
     if (action === "insertUpdates") return json(insertUpdates(payload));
     if (action === "getMonitorSources") return json({ ok: true, sources: getMonitorSources() });
+    if (action === "saveMonitoringRun") return json(saveMonitoringRun(payload));
+    if (action === "saveMonitoringRunItem") return json(saveMonitoringRunItem(payload));
+    if (action === "saveChatThread") return json(saveChatThread(payload));
+    if (action === "saveChatMessage") return json(saveChatMessage(payload));
+    if (action === "getChatThreads") return json(getChatThreads(payload));
 
     return json({ ok: false, error: "Unknown action: " + action });
   } catch (error) {
@@ -169,6 +201,7 @@ function initData() {
 
   seedPerson(company.id, "Andreas Hoepner", "Sustainable finance / financial data science contact", "https://www.linkedin.com/in/andreashoepner/");
   seedPerson(company.id, "Damian Borth", "AI / machine-learning contact", "https://www.linkedin.com/in/damianborth/");
+  seedDefaultLabels();
 
   return { ok: true, ...getData() };
 }
@@ -183,6 +216,12 @@ function getData() {
     library: rows("uploaded_files"),
     chunks: rows("document_chunks"),
     briefs: rows("briefs"),
+    monitoring_runs: rows("monitoring_runs"),
+    monitoring_run_items: rows("monitoring_run_items"),
+    chat_threads: rows("chat_threads"),
+    chat_messages: rows("chat_messages"),
+    labels: rows("labels"),
+    update_labels: rows("update_labels"),
   };
 }
 
@@ -293,9 +332,91 @@ function insertUpdates(payload) {
       },
     );
     appendRow("updates", row);
+    linkUpdateLabels(row.id, update.labels || [], update.ai_confidence || 0.7);
     inserted.push(row);
   });
   return { ok: true, inserted: inserted, deduped: deduped };
+}
+
+function saveMonitoringRun(payload) {
+  const now = iso();
+  const existing = payload.id ? findRow("monitoring_runs", "id", payload.id) : null;
+  const old = existing ? existing.row : {};
+  const row = {
+    id: existing ? old.id : payload.id || uuid(),
+    run_type: payload.run_type || old.run_type || "manual",
+    scheduled_for: payload.scheduled_for || old.scheduled_for || "",
+    started_at: payload.started_at || old.started_at || now,
+    finished_at: payload.finished_at || old.finished_at || "",
+    status: payload.status || old.status || "running",
+    companies_checked: firstDefined(payload.companies_checked, old.companies_checked, 0),
+    updates_found: firstDefined(payload.updates_found, old.updates_found, 0),
+    errors_count: firstDefined(payload.errors_count, old.errors_count, 0),
+    summary: payload.summary || old.summary || "",
+  };
+  upsertRow("monitoring_runs", existing ? existing.index : null, row);
+  return { ok: true, run: row };
+}
+
+function saveMonitoringRunItem(payload) {
+  const existing = payload.id ? findRow("monitoring_run_items", "id", payload.id) : null;
+  const old = existing ? existing.row : {};
+  const row = {
+    id: existing ? old.id : payload.id || uuid(),
+    monitoring_run_id: payload.monitoring_run_id || old.monitoring_run_id || "",
+    company_id: payload.company_id || old.company_id || "",
+    source_id: payload.source_id || old.source_id || "",
+    status: payload.status || old.status || "success",
+    updates_found: firstDefined(payload.updates_found, old.updates_found, 0),
+    error_message: payload.error_message || old.error_message || "",
+    started_at: payload.started_at || old.started_at || iso(),
+    finished_at: payload.finished_at || old.finished_at || iso(),
+  };
+  upsertRow("monitoring_run_items", existing ? existing.index : null, row);
+  return { ok: true, item: row };
+}
+
+function saveChatThread(payload) {
+  const now = iso();
+  const existing = payload.id ? findRow("chat_threads", "id", payload.id) : null;
+  const old = existing ? existing.row : {};
+  const row = {
+    id: existing ? old.id : payload.id || uuid(),
+    scope_type: payload.scope_type || old.scope_type || "company",
+    company_id: payload.company_id || old.company_id || "",
+    person_id: payload.person_id || old.person_id || "",
+    title: payload.title || old.title || "Market intelligence chat",
+    created_at: existing ? old.created_at : payload.created_at || now,
+    updated_at: now,
+  };
+  upsertRow("chat_threads", existing ? existing.index : null, row);
+  return { ok: true, thread: row };
+}
+
+function saveChatMessage(payload) {
+  const row = {
+    id: payload.id || uuid(),
+    chat_thread_id: payload.chat_thread_id || "",
+    role: payload.role || "user",
+    content: payload.content || "",
+    source_refs: stringify(payload.source_refs || []),
+    created_at: payload.created_at || iso(),
+  };
+  appendRow("chat_messages", row);
+  return { ok: true, message: row };
+}
+
+function getChatThreads(payload) {
+  const companyId = payload.company_id || "";
+  const threads = rows("chat_threads").filter((thread) => !companyId || thread.company_id === companyId);
+  const messages = rows("chat_messages");
+  return {
+    ok: true,
+    threads: threads.map((thread) => ({
+      thread: thread,
+      messages: messages.filter((message) => message.chat_thread_id === thread.id),
+    })),
+  };
 }
 
 function getMonitorSources() {
@@ -353,6 +474,68 @@ function seedPerson(companyId, name, role, linkedin) {
   });
 }
 
+function seedDefaultLabels() {
+  [
+    ["ESG", "risk", "Environmental, social, and governance signal"],
+    ["Climate", "risk", "Climate transition or physical climate signal"],
+    ["Regulatory", "risk", "Regulatory, compliance, or policy signal"],
+    ["Reputation", "risk", "Brand, trust, or public perception signal"],
+    ["Operational Risk", "risk", "Execution, process, or resilience risk"],
+    ["Market Risk", "risk", "Market, investment, or demand-side risk"],
+    ["Product Launch", "event", "New product, service, or capability"],
+    ["Partnership", "event", "Partnership or ecosystem development"],
+    ["Campaign", "event", "Campaign, announcement, or public communication"],
+    ["Leadership Change", "event", "Executive or senior-role movement"],
+    ["Expansion", "event", "Geographic, market, or team expansion"],
+    ["Hiring", "event", "Hiring or talent signal"],
+    ["Financial/Funding", "event", "Funding, revenue, or financial signal"],
+    ["Legal", "risk", "Legal dispute, enforcement, or governance signal"],
+    ["Sustainability", "topic", "Sustainability and impact topic"],
+    ["Supply Chain", "risk", "Supplier, procurement, or chain-of-custody issue"],
+    ["AI", "topic", "AI, ML, model, or automation signal"],
+    ["Source Health", "ops", "Monitoring coverage or source quality signal"],
+    ["Website", "source", "Website-sourced update"],
+    ["Data Quality", "topic", "Data reliability, quality testing, or verification signal"],
+  ].forEach((item) => seedLabel(item[0], item[1], item[2]));
+}
+
+function seedLabel(name, labelType, description) {
+  if (!name || findRow("labels", "name", name)) return null;
+  const row = { id: uuid(), name: name, label_type: labelType || "topic", description: description || "", created_at: iso() };
+  appendRow("labels", row);
+  return row;
+}
+
+function ensureLabel(name) {
+  const clean = String(name || "").trim();
+  if (!clean) return null;
+  const existing = findRow("labels", "name", clean);
+  if (existing) return existing.row;
+  return seedLabel(clean, inferLabelType(clean), "Auto-created from update label.");
+}
+
+function inferLabelType(name) {
+  if (["ESG", "Climate", "Regulatory", "Reputation", "Operational Risk", "Market Risk", "Legal", "Supply Chain"].indexOf(name) >= 0) return "risk";
+  if (["Product Launch", "Partnership", "Campaign", "Leadership Change", "Expansion", "Hiring", "Financial/Funding"].indexOf(name) >= 0) return "event";
+  if (["Website", "LinkedIn", "Instagram", "X"].indexOf(name) >= 0) return "source";
+  return "topic";
+}
+
+function linkUpdateLabels(updateId, labels, confidence) {
+  (labels || []).forEach((name) => {
+    const label = ensureLabel(name);
+    if (!label) return;
+    const exists = rows("update_labels").some((row) => row.update_id === updateId && row.label_id === label.id);
+    if (exists) return;
+    appendRow("update_labels", {
+      update_id: updateId,
+      label_id: label.id,
+      confidence: confidence || 0.7,
+      created_at: iso(),
+    });
+  });
+}
+
 function rows(sheetName) {
   const sheet = getSpreadsheet().getSheetByName(sheetName);
   const values = sheet.getDataRange().getValues();
@@ -385,6 +568,13 @@ function upsertRow(sheetName, rowIndex, object) {
   const row = headers.map((key) => serialize(object[key]));
   if (rowIndex) sheet.getRange(rowIndex, 1, 1, headers.length).setValues([row]);
   else sheet.appendRow(row);
+}
+
+function firstDefined() {
+  for (let index = 0; index < arguments.length; index += 1) {
+    if (arguments[index] !== undefined && arguments[index] !== null) return arguments[index];
+  }
+  return "";
 }
 
 function chunkText(text) {

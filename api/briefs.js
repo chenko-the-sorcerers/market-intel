@@ -2,6 +2,7 @@ import { sql } from "@vercel/postgres";
 import { ensureSchema, getDashboardData, hasDatabase } from "./_db.js";
 import { getGasData, hasGas, saveGasBrief } from "./_gas.js";
 import { generateIntelligenceText } from "./_llm.js";
+import { getBriefTemplate } from "./_templates.js";
 
 export default async function handler(request, response) {
   if (!["GET", "POST"].includes(request.method)) {
@@ -19,8 +20,7 @@ export default async function handler(request, response) {
       const generated = await generateIntelligenceText({
         task: "brief",
         question:
-          question ||
-          `Generate a ${brief_type} brief. Include facts, inferences, recommendations, discovery questions, and source citations.`,
+          `${question || `Generate a ${brief_type} brief. Include facts, inferences, recommendations, discovery questions, and source citations.`}\n\n${getBriefTemplate(brief_type)}`,
         context,
       });
       const saved = await saveGasBrief({
@@ -51,8 +51,7 @@ export default async function handler(request, response) {
     const generated = await generateIntelligenceText({
       task: "brief",
       question:
-        question ||
-        `Generate a ${brief_type} brief. Include facts, inferences, recommendations, discovery questions, and source citations.`,
+        `${question || `Generate a ${brief_type} brief. Include facts, inferences, recommendations, discovery questions, and source citations.`}\n\n${getBriefTemplate(brief_type)}`,
       context,
     });
 
