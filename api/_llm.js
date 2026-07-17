@@ -6,9 +6,22 @@ const GEMINI_FALLBACK_MODELS = (
   .map((model) => model.trim())
   .filter(Boolean);
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 
 export async function generateIntelligenceText({ task = "chat", question = "", context = {} }) {
   const prompt = buildPrompt(task, question, context);
+
+  if (process.env.GROQ_API_KEY) {
+    try {
+      return { text: await generateWithGroq(prompt), provider: `groq:${GROQ_MODEL}`, fallback: false };
+    } catch (error) {
+      return {
+        text: fallbackText(question, context, `Groq unavailable: ${cleanProviderError(error.message)}`),
+        provider: "local-retrieval",
+        fallback: true,
+      };
+    }
+  }
 
   if (process.env.OPENAI_API_KEY) {
     try {
@@ -103,6 +116,32 @@ async function generateWithOpenAI(prompt) {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error?.message || "OpenAI request failed");
   return data.output_text || data.output?.flatMap((item) => item.content || []).map((part) => part.text || "").join("\n") || "";
+}
+
+async function generateWithGroq(prompt) {
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a personal market intelligence assistant. Always answer in English. Separate facts, inferences, recommendations, and sources. Be explicit about uncertainty.",
+        },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.25,
+      max_completion_tokens: 1200,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || "Groq request failed");
+  return data.choices?.[0]?.message?.content || "";
 }
 
 async function generateWithGemini(prompt) {

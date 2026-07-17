@@ -16,7 +16,9 @@ export default async function handler(request, response) {
   return response.status(200).json({
     ok: !data.error,
     storage,
-    ai_provider: process.env.OPENAI_API_KEY
+    ai_provider: process.env.GROQ_API_KEY
+      ? "groq"
+      : process.env.OPENAI_API_KEY
       ? "openai"
       : process.env.GEMINI_API_KEY || process.env.MARKET_INTEL_API_KEY
         ? "gemini"

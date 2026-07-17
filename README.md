@@ -23,13 +23,15 @@ The MVP is a static app. The build step validates `app.js`, then copies `index.h
 Add these Environment Variables in Vercel:
 
 - `GAS_WEB_APP_URL`: optional; defaults to the provided Apps Script web app URL
+- `GROQ_API_KEY`: recommended hosted AI provider
+- `GROQ_MODEL`: optional, defaults to `llama-3.3-70b-versatile`
 - `GEMINI_API_KEY`: your Gemini API key
 - `GEMINI_MODEL`: optional, defaults to `gemini-2.0-flash`
 - `OPENAI_API_KEY`: optional; when present, RAG chat and brief generation use OpenAI first
 - `OPENAI_MODEL`: optional, defaults to `gpt-4.1-mini`
 - `POSTGRES_URL`: optional fallback if you later want Vercel Postgres / Neon
 
-The API key must not be committed to Git. The browser calls `/api/ai`, and the Vercel function reads the key from the server-side environment.
+API keys must not be committed to Git. The browser calls `/api/ai`, and the Vercel function reads provider keys from the server-side environment. Provider priority is Groq, then OpenAI, then Gemini, then local retrieval fallback.
 
 Open `/api/init` once after deploying. With GAS enabled, this creates the required Google Sheet tabs and seeds Sociovestix demo records.
 

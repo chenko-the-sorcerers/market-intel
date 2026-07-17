@@ -1024,6 +1024,8 @@ function bindEvents() {
       removeMessage(pending);
       const label = result.fallback
         ? "Local retrieval answer"
+        : result.provider?.startsWith("groq")
+          ? "Groq answer"
         : result.provider?.startsWith("gemini")
           ? "Gemini answer"
           : result.provider?.startsWith("openai")
