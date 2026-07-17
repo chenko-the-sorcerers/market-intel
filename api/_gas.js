@@ -1,5 +1,5 @@
 const DEFAULT_GAS_URL =
-  "https://script.google.com/macros/s/AKfycbw5bh0x8_CPXvXOXSKxyWzm8LIrCMn9_wJxiE3e4-o-d1uXej7d6hL5yCasGrCqPHNz/exec";
+  "https://script.google.com/macros/s/AKfycby4MUNIae7mcj6Lh_o91UMbydup-7s3T8Piv0y1bYjTx5AY5G3yGxQRcOd9He-Zp_Qs/exec";
 const GAS_URL = process.env.GAS_WEB_APP_URL || process.env.GOOGLE_APPS_SCRIPT_URL || DEFAULT_GAS_URL;
 
 export function hasGas() {
