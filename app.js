@@ -607,6 +607,19 @@ function addMessage(role, html) {
   selectors.chatMessages.scrollTop = selectors.chatMessages.scrollHeight;
 }
 
+function removeMessage(element) {
+  if (element) element.remove();
+}
+
+function addPendingMessage() {
+  selectors.chatMessages.insertAdjacentHTML(
+    "beforeend",
+    `<div class="message bot" data-pending="true"><strong>Working</strong><p>Checking stored research context and AI route...</p></div>`,
+  );
+  selectors.chatMessages.scrollTop = selectors.chatMessages.scrollHeight;
+  return selectors.chatMessages.querySelector("[data-pending='true']:last-child");
+}
+
 function answerQuestion(question) {
   const lower = question.toLowerCase();
   if (lower.includes("brief") || lower.includes("meeting")) {
@@ -1006,11 +1019,17 @@ function bindEvents() {
     if (!question) return;
     addMessage("user", `<strong>You</strong><p>${question}</p>`);
     input.value = "";
+    const pending = addPendingMessage();
     try {
       const text = await askAi("chat", question);
+      removeMessage(pending);
       addMessage("bot", `<strong>AI answer</strong>${formatAiText(text)}`);
-    } catch {
-      addMessage("bot", answerQuestion(question));
+    } catch (error) {
+      removeMessage(pending);
+      addMessage(
+        "bot",
+        `<strong>Local fallback</strong><p>${error.message || "AI route unavailable."}</p>${answerQuestion(question)}`,
+      );
     }
   });
 }

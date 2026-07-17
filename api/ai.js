@@ -1,4 +1,3 @@
-import { getDashboardData, hasDatabase } from "./_db.js";
 import { getGasData, hasGas } from "./_gas.js";
 import { generateIntelligenceText } from "./_llm.js";
 
@@ -9,11 +8,7 @@ export default async function handler(request, response) {
 
   try {
     const { task = "chat", question = "", context = {} } = request.body || {};
-    const dbContext = hasGas()
-      ? await getGasData().catch(() => ({}))
-      : hasDatabase()
-        ? await getDashboardData().catch(() => ({}))
-        : {};
+    const dbContext = await getStorageContext();
     const text = await generateIntelligenceText({
       task,
       question,
@@ -22,5 +17,16 @@ export default async function handler(request, response) {
     return response.status(200).json({ text });
   } catch (error) {
     return response.status(500).json({ error: error.message || "AI request failed" });
+  }
+}
+
+async function getStorageContext() {
+  if (hasGas()) return getGasData().catch(() => ({}));
+
+  try {
+    const db = await import("./_db.js");
+    return db.hasDatabase() ? db.getDashboardData().catch(() => ({})) : {};
+  } catch {
+    return {};
   }
 }

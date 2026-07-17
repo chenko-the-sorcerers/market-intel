@@ -5,11 +5,19 @@ export async function generateIntelligenceText({ task = "chat", question = "", c
   const prompt = buildPrompt(task, question, context);
 
   if (process.env.OPENAI_API_KEY) {
-    return generateWithOpenAI(prompt);
+    try {
+      return await generateWithOpenAI(prompt);
+    } catch (error) {
+      return `${fallbackText(question, context)}\n\nProvider status:\n- OpenAI request failed: ${error.message}`;
+    }
   }
 
   if (process.env.GEMINI_API_KEY || process.env.MARKET_INTEL_API_KEY) {
-    return generateWithGemini(prompt);
+    try {
+      return await generateWithGemini(prompt);
+    } catch (error) {
+      return `${fallbackText(question, context)}\n\nProvider status:\n- Gemini request failed: ${error.message}`;
+    }
   }
 
   return fallbackText(question, context);
@@ -119,18 +127,40 @@ function buildPrompt(task, question, context) {
 }
 
 function fallbackText(question, context) {
+  const data = context.database || context;
+  const companies = data.companies || [];
+  const updates = data.updates || [];
+  const people = data.people || [];
+  const library = data.library || [];
+  const briefs = data.briefs || [];
+  const relevantUpdates = updates
+    .slice(0, 5)
+    .map((update) => `- ${update.title || "Untitled"}: ${update.ai_summary_en || update.summary || update.snippet || ""}`)
+    .join("\n");
+  const relevantPeople = people
+    .slice(0, 4)
+    .map((person) => `- ${person.full_name || person.name}: ${person.role_title || person.role || ""}`)
+    .join("\n");
+
   return [
     "Facts from sources:",
-    `- Available context includes ${context.companies?.length || 0} companies, ${context.updates?.length || 0} updates, ${context.people?.length || 0} people, and ${context.library?.length || 0} files.`,
+    `- Available context includes ${companies.length} companies, ${updates.length} updates, ${people.length} people, ${library.length} files, and ${briefs.length} briefs.`,
+    companies[0]?.name ? `- Primary company in scope: ${companies[0].name}.` : "- No primary company is loaded yet.",
+    relevantUpdates ? `- Recent updates:\n${relevantUpdates}` : "- No monitored updates are stored yet. Run /api/monitor-run to populate updates.",
+    relevantPeople ? `- People context:\n${relevantPeople}` : "- No people profiles are stored yet.",
     "",
     "Inferences:",
-    "- AI provider environment variables are not configured yet, so this is a deterministic fallback.",
+    "- The live AI provider is not configured or unavailable, so this answer is generated from stored context without model reasoning.",
+    "- For Sociovestix, useful intelligence angles remain ESG data quality, financial data science, AI auditability, and source health for social profiles.",
     "",
     "Recommendations:",
-    "- Add OPENAI_API_KEY or GEMINI_API_KEY in Vercel, then retry this request.",
+    "- Run the monitoring job, review new updates, then generate a brief from the Briefs tab.",
+    "- Add OPENAI_API_KEY or GEMINI_API_KEY in Vercel for full chatbot synthesis.",
+    "- Treat LinkedIn/Instagram/X as manual/provider sources unless authenticated collection is configured.",
     "",
     "Sources:",
-    "- Dashboard database context and configured source URLs.",
+    "- GAS/Google Sheet dashboard context.",
+    ...companies.map((company) => `- ${company.website_url || company.website || company.name}`).slice(0, 5),
   ].join("\n");
 }
 
