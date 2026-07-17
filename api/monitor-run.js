@@ -1,5 +1,6 @@
 import { sql } from "@vercel/postgres";
 import { ensureSchema, hashText, hasDatabase, seedDatabase } from "./_db.js";
+import { getGasMonitorSources, hasGas, insertGasUpdates, seedGasData } from "./_gas.js";
 import { summarizeUpdate } from "./_llm.js";
 
 const MAX_LINKS_PER_SOURCE = 8;
@@ -8,11 +9,28 @@ export default async function handler(request, response) {
   if (!["GET", "POST"].includes(request.method)) {
     return response.status(405).json({ error: "Method not allowed" });
   }
-  if (!hasDatabase()) {
-    return response.status(501).json({ error: "POSTGRES_URL is not configured." });
-  }
 
   try {
+    if (hasGas()) {
+      await seedGasData();
+      const sources = await getGasMonitorSources();
+      const discovered = await discoverUpdates(sources);
+      const saved = await insertGasUpdates({ updates: discovered.updates });
+      return response.status(200).json({
+        ok: true,
+        storage: "gas",
+        checked_sources: sources.length,
+        inserted: saved.inserted?.length || 0,
+        deduped: saved.deduped?.length || 0,
+        errors: discovered.errors,
+        updates: saved.inserted || [],
+      });
+    }
+
+    if (!hasDatabase()) {
+      return response.status(501).json({ error: "GAS_WEB_APP_URL or POSTGRES_URL is not configured." });
+    }
+
     await seedDatabase();
     await ensureSchema();
 
@@ -32,69 +50,99 @@ export default async function handler(request, response) {
       order by cs.created_at asc
     `;
 
+    const discovered = await discoverUpdates(sources.rows);
     const inserted = [];
-    const skipped = [];
-    const errors = [];
+    const deduped = [];
+
+    for (const update of discovered.updates) {
+      const result = await sql`
+        insert into updates (
+          company_id, source_id, source_type, source_url, canonical_url,
+          title, raw_text, snippet, language, published_at, discovered_at,
+          content_hash, ai_summary_en, ai_importance, ai_confidence, facts,
+          inferences, risk_categories, labels, status
+        )
+        values (
+          ${update.company_id}, ${update.source_id}, ${update.source_type}, ${update.source_url},
+          ${update.canonical_url}, ${update.title}, ${update.raw_text}, ${update.snippet},
+          ${update.language}, null, ${update.discovered_at}, ${update.content_hash},
+          ${update.ai_summary_en}, ${update.ai_importance}, ${update.ai_confidence},
+          ${update.facts}, ${update.inferences}, ${JSON.stringify(update.risk_categories)}::jsonb,
+          ${JSON.stringify(update.labels)}::jsonb, ${update.status}
+        )
+        on conflict (content_hash) do nothing
+        returning id, title, source_url
+      `;
+      if (result.rows[0]) inserted.push(result.rows[0]);
+      else deduped.push(update.source_url);
+    }
 
     for (const source of sources.rows) {
-      try {
-        const discovered = await crawlSource(source.url);
-        for (const item of discovered.slice(0, MAX_LINKS_PER_SOURCE)) {
-          const contentHash = hashText(`${source.company_id}:${item.url}:${item.title}:${item.text.slice(0, 800)}`);
-          const summary = await summarizeUpdate({
-            title: item.title,
-            rawText: item.text,
-            sourceUrl: item.url,
-          });
-
-          const result = await sql`
-            insert into updates (
-              company_id, source_id, source_type, source_url, canonical_url,
-              title, raw_text, snippet, content_hash, ai_summary_en,
-              ai_importance, ai_confidence, facts, inferences,
-              risk_categories, labels, status
-            )
-            values (
-              ${source.company_id}, ${source.source_id}, ${source.source_type}, ${item.url},
-              ${item.url}, ${item.title}, ${item.text}, ${item.text.slice(0, 400)},
-              ${contentHash}, ${summary.summary}, ${summary.priority}, ${summary.confidence},
-              ${summary.facts}, ${summary.inferences}, ${JSON.stringify(summary.risk_categories)}::jsonb,
-              ${JSON.stringify(summary.labels)}::jsonb, 'new'
-            )
-            on conflict (content_hash) do nothing
-            returning id, title, source_url
-          `;
-
-          if (result.rows[0]) inserted.push(result.rows[0]);
-          else skipped.push(item.url);
-        }
-
-        await sql`
-          update company_sources
-          set last_checked_at = now(), last_success_at = now(), last_error = null, updated_at = now()
-          where id = ${source.source_id}
-        `;
-      } catch (error) {
-        errors.push({ source: source.url, error: error.message });
-        await sql`
-          update company_sources
-          set last_checked_at = now(), last_error = ${error.message}, updated_at = now()
-          where id = ${source.source_id}
-        `;
-      }
+      await sql`
+        update company_sources
+        set last_checked_at = now(), last_success_at = now(), last_error = null, updated_at = now()
+        where id = ${source.source_id}
+      `;
     }
 
     return response.status(200).json({
       ok: true,
+      storage: "postgres",
       checked_sources: sources.rows.length,
       inserted: inserted.length,
-      deduped: skipped.length,
-      errors,
+      deduped: deduped.length,
+      errors: discovered.errors,
       updates: inserted,
     });
   } catch (error) {
     return response.status(500).json({ error: error.message || "Monitor run failed" });
   }
+}
+
+async function discoverUpdates(sources) {
+  const updates = [];
+  const errors = [];
+
+  for (const source of sources) {
+    try {
+      const discovered = await crawlSource(source.url);
+      for (const item of discovered.slice(0, MAX_LINKS_PER_SOURCE)) {
+        const summary = await summarizeUpdate({
+          title: item.title,
+          rawText: item.text,
+          sourceUrl: item.url,
+        });
+        updates.push({
+          company_id: source.company_id,
+          source_id: source.source_id,
+          source_type: source.source_type,
+          source_url: item.url,
+          canonical_url: item.url,
+          title: item.title,
+          raw_text: item.text,
+          snippet: item.text.slice(0, 400),
+          language: "en",
+          published_at: "",
+          discovered_at: new Date().toISOString(),
+          content_hash: hashText(`${source.company_id}:${item.url}:${item.title}:${item.text.slice(0, 800)}`),
+          ai_summary_en: summary.summary,
+          ai_importance: summary.priority,
+          ai_confidence: summary.confidence,
+          facts: summary.facts,
+          inferences: summary.inferences,
+          risk_categories: summary.risk_categories,
+          labels: summary.labels,
+          status: "new",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      }
+    } catch (error) {
+      errors.push({ source: source.url, error: error.message });
+    }
+  }
+
+  return { updates, errors };
 }
 
 async function crawlSource(startUrl) {
@@ -135,7 +183,7 @@ async function crawlSource(startUrl) {
         text: extractMeta(body, "description") || cleanText(body).slice(0, 2500),
       });
     } catch {
-      // Keep the crawl resilient; source health records the parent fetch.
+      // Keep the crawl resilient.
     }
   }
 
@@ -158,10 +206,7 @@ function extractLinks(html, baseUrl) {
   return [...html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)]
     .map((match) => {
       try {
-        return {
-          url: new URL(match[1], baseUrl).href,
-          text: cleanText(match[2]),
-        };
+        return { url: new URL(match[1], baseUrl).href, text: cleanText(match[2]) };
       } catch {
         return null;
       }

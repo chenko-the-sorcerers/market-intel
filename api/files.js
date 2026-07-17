@@ -1,12 +1,20 @@
 import { sql } from "@vercel/postgres";
 import { chunkText, ensureSchema, hasDatabase } from "./_db.js";
+import { hasGas, saveGasFile } from "./_gas.js";
 
 export default async function handler(request, response) {
   if (request.method !== "POST") {
     return response.status(405).json({ error: "Method not allowed" });
   }
+  if (hasGas()) {
+    try {
+      return response.status(200).json(await saveGasFile(request.body || {}));
+    } catch (error) {
+      return response.status(500).json({ error: error.message || "GAS file indexing failed" });
+    }
+  }
   if (!hasDatabase()) {
-    return response.status(501).json({ error: "POSTGRES_URL is not configured." });
+    return response.status(501).json({ error: "GAS_WEB_APP_URL or POSTGRES_URL is not configured." });
   }
 
   try {

@@ -22,15 +22,30 @@ The MVP is a static app. The build step validates `app.js`, then copies `index.h
 
 Add these Environment Variables in Vercel:
 
+- `GAS_WEB_APP_URL`: optional; defaults to the provided Apps Script web app URL
 - `GEMINI_API_KEY`: your Gemini API key
 - `GEMINI_MODEL`: optional, defaults to `gemini-2.0-flash`
 - `OPENAI_API_KEY`: optional; when present, RAG chat and brief generation use OpenAI first
 - `OPENAI_MODEL`: optional, defaults to `gpt-4.1-mini`
-- `POSTGRES_URL`: required for persistent Vercel Postgres / Neon database storage
+- `POSTGRES_URL`: optional fallback if you later want Vercel Postgres / Neon
 
 The API key must not be committed to Git. The browser calls `/api/ai`, and the Vercel function reads the key from the server-side environment.
 
-After adding `POSTGRES_URL`, open `/api/init` once to create the database tables and seed Sociovestix demo records.
+Open `/api/init` once after deploying. With GAS enabled, this creates the required Google Sheet tabs and seeds Sociovestix demo records.
+
+## Google Apps Script storage
+
+This project now uses Google Apps Script as the primary storage layer. The Vercel API routes call the GAS web app and the GAS script writes into Google Sheet tabs:
+
+- `companies`
+- `company_sources`
+- `updates`
+- `people`
+- `uploaded_files`
+- `document_chunks`
+- `briefs`
+
+Use `gas/Code.gs` as the Apps Script code. If the script is not bound to a spreadsheet, set Script Property `SPREADSHEET_ID` to the target Google Sheet ID. Deploy the script as a Web App with access allowed for the Vercel backend.
 
 ## Current MVP
 
@@ -47,7 +62,8 @@ After adding `POSTGRES_URL`, open `/api/init` once to create the database tables
 - Serverless `/api/monitor` route for single website refreshes.
 - Serverless `/api/monitor-run` route for scheduled Wednesday/Friday monitoring.
 - Vercel cron configured for Wednesday and Friday at 00:00 UTC.
-- Postgres tables for companies, sources, updates, people, uploaded files, chunks, and briefs.
+- GAS-backed Google Sheet tables for companies, sources, updates, people, uploaded files, chunks, and briefs.
+- Optional Postgres adapter remains available as a fallback.
 - Browser localStorage fallback when Postgres is not configured.
 - Client-side text extraction for `.txt`, `.md`, `.csv`, and `.json` uploads.
 - `/api/files` indexes uploaded text into chunks for chatbot retrieval context.

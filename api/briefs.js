@@ -1,13 +1,41 @@
 import { sql } from "@vercel/postgres";
 import { ensureSchema, getDashboardData, hasDatabase } from "./_db.js";
+import { getGasData, hasGas, saveGasBrief } from "./_gas.js";
 import { generateIntelligenceText } from "./_llm.js";
 
 export default async function handler(request, response) {
   if (!["GET", "POST"].includes(request.method)) {
     return response.status(405).json({ error: "Method not allowed" });
   }
+  if (hasGas()) {
+    try {
+      if (request.method === "GET") {
+        const data = await getGasData();
+        return response.status(200).json({ briefs: data.briefs });
+      }
+
+      const { brief_type = "one-page", title = "Market intelligence brief", question = "" } = request.body || {};
+      const context = await getGasData();
+      const body = await generateIntelligenceText({
+        task: "brief",
+        question:
+          question ||
+          `Generate a ${brief_type} brief. Include facts, inferences, recommendations, discovery questions, and source citations.`,
+        context,
+      });
+      const saved = await saveGasBrief({
+        brief_type,
+        title,
+        body_markdown: body,
+        sources: extractSources(context),
+      });
+      return response.status(200).json({ brief: saved.brief });
+    } catch (error) {
+      return response.status(500).json({ error: error.message || "GAS brief generation failed" });
+    }
+  }
   if (!hasDatabase()) {
-    return response.status(501).json({ error: "POSTGRES_URL is not configured." });
+    return response.status(501).json({ error: "GAS_WEB_APP_URL or POSTGRES_URL is not configured." });
   }
 
   try {

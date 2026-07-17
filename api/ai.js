@@ -1,4 +1,5 @@
 import { getDashboardData, hasDatabase } from "./_db.js";
+import { getGasData, hasGas } from "./_gas.js";
 import { generateIntelligenceText } from "./_llm.js";
 
 export default async function handler(request, response) {
@@ -8,7 +9,11 @@ export default async function handler(request, response) {
 
   try {
     const { task = "chat", question = "", context = {} } = request.body || {};
-    const dbContext = hasDatabase() ? await getDashboardData().catch(() => ({})) : {};
+    const dbContext = hasGas()
+      ? await getGasData().catch(() => ({}))
+      : hasDatabase()
+        ? await getDashboardData().catch(() => ({}))
+        : {};
     const text = await generateIntelligenceText({
       task,
       question,

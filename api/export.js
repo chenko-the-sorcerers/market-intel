@@ -1,22 +1,27 @@
 import { sql } from "@vercel/postgres";
 import { ensureSchema, hasDatabase } from "./_db.js";
+import { getGasData, hasGas } from "./_gas.js";
 
 export default async function handler(request, response) {
   if (request.method !== "GET") {
     return response.status(405).send("Method not allowed");
   }
-  if (!hasDatabase()) {
-    return response.status(501).send("POSTGRES_URL is not configured.");
-  }
-
   try {
-    await ensureSchema();
     const { id, format = "md" } = request.query || {};
-    const result = id
-      ? await sql`select * from briefs where id = ${id} limit 1`
-      : await sql`select * from briefs order by created_at desc limit 1`;
+    let brief;
 
-    const brief = result.rows[0];
+    if (hasGas()) {
+      const data = await getGasData();
+      brief = id ? data.briefs.find((item) => item.id === id) : data.briefs[0];
+    } else {
+      if (!hasDatabase()) return response.status(501).send("GAS_WEB_APP_URL or POSTGRES_URL is not configured.");
+      await ensureSchema();
+      const result = id
+        ? await sql`select * from briefs where id = ${id} limit 1`
+        : await sql`select * from briefs order by created_at desc limit 1`;
+      brief = result.rows[0];
+    }
+
     if (!brief) return response.status(404).send("No brief found.");
 
     if (format === "html" || format === "docx") {
