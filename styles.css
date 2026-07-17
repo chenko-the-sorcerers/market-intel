@@ -547,6 +547,34 @@ th {
   max-width: 760px;
 }
 
+.person-overview-card {
+  display: grid;
+  gap: 16px;
+}
+
+.person-overview-head {
+  align-items: start;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding-bottom: 14px;
+}
+
+.person-overview-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.person-overview-grid section,
+.person-readout {
+  background: #fbfcfd;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+}
+
 .profile-link {
   display: inline-block;
   margin-bottom: 12px;
@@ -755,6 +783,7 @@ dialog {
   .brief-layout,
   .dossier-grid,
   .insight-columns,
+  .person-overview-grid,
   .summary-columns,
   .people-grid,
   .library-grid,
@@ -771,6 +800,7 @@ dialog {
   .topbar,
   .section-heading,
   .personal-intel-panel,
+  .person-overview-head,
   .topbar-actions {
     align-items: stretch;
     flex-direction: column;

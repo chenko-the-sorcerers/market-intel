@@ -463,8 +463,12 @@ function seedPerson(companyId, name, role, linkedin) {
     role_title: role,
     profile_url: linkedin,
     linkedin_url: linkedin,
-    notes: "Configured source. Use provider/manual import for production social monitoring.",
-    ai_background_summary: "Initial person profile seeded for meeting intelligence.",
+    notes: name === "Damian Borth"
+      ? "Profile source tracked as a manual/provider input. Public context connects him with AI, machine learning, and Sociovestix Laboratories."
+      : "Profile source tracked as a manual/provider input. Sociovestix context emphasizes sustainable finance, financial data science, and ESG data quality.",
+    ai_background_summary: name === "Damian Borth"
+      ? "AI productization, model governance, financial time-series workflows, and explainable automation for regulated financial-data users."
+      : "ESG data quality, asset-owner sustainability workflows, EU sustainable finance expectations, and climate-transition analytics.",
     ai_pain_points: "[]",
     ai_aspirations: "[]",
     ai_unique_trade: "",

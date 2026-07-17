@@ -518,30 +518,121 @@ function renderWorkspace(tab = "overview") {
 function renderPeople() {
   selectors.peopleGrid.innerHTML = people
     .map(
-      (person) => `
-        <article class="person-card">
-          <h2>${person.name}</h2>
-          <p><strong>${person.role}</strong><br>${person.company}</p>
-          <a class="profile-link" href="${person.url}" target="_blank" rel="noreferrer">Open configured profile</a>
-          <div class="tag-row">${tag(`Confidence: ${person.confidence}`)} ${tag("Personal intelligence ready")}</div>
-          <h3>Profile signal</h3>
-          <p>${personProfileSignal(person)}</p>
-          <h3>Meeting angles</h3>
-          <p>${personMeetingAngles(person)}</p>
-          <h3>Discovery questions</h3>
-          <ul class="compact-list">${person.questions.map((q) => `<li>${q}</li>`).join("")}</ul>
-          <div class="card-actions">
-            <button type="button" data-person-dossier="${person.name}">Generate personal intelligence dossier</button>
-          </div>
-        </article>
-      `,
+      (person) => renderPersonOverviewCard(person),
     )
     .join("");
 }
 
+function renderPersonOverviewCard(person) {
+  const overview = getPersonalIntelligenceOverview(person);
+  return `
+    <article class="person-card person-overview-card">
+      <div class="person-overview-head">
+        <div>
+          <p class="eyebrow">Personal intelligence overview</p>
+          <h2>${person.name}</h2>
+          <p><strong>${person.role}</strong><br>${person.company}</p>
+        </div>
+        <div class="tag-row">${tag(`Confidence: ${person.confidence}`)} ${tag("Meeting-ready")}</div>
+      </div>
+
+      <section class="person-readout">
+        <h3>Executive readout</h3>
+        <ul class="compact-list">${overview.readout.map((item) => `<li>${item}</li>`).join("")}</ul>
+      </section>
+
+      <div class="person-overview-grid">
+        <section>
+          <h3>Career & credibility</h3>
+          <p>${overview.credibility}</p>
+        </section>
+        <section>
+          <h3>Professional agenda</h3>
+          <p>${overview.agenda}</p>
+        </section>
+        <section>
+          <h3>Likely pain points</h3>
+          <p>${overview.painPoints}</p>
+        </section>
+        <section>
+          <h3>Aspirations & vision</h3>
+          <p>${overview.aspirations}</p>
+        </section>
+      </div>
+
+      <section>
+        <h3>Engagement approach</h3>
+        <p>${overview.engagement}</p>
+      </section>
+
+      <section>
+        <h3>Discovery questions</h3>
+        <ul class="compact-list">${overview.questions.map((q) => `<li>${q}</li>`).join("")}</ul>
+      </section>
+
+      <section>
+        <h3>Source notes</h3>
+        <p>${overview.sources}</p>
+      </section>
+
+      <div class="card-actions">
+        <a href="${person.url}" target="_blank" rel="noreferrer">Open profile source</a>
+        <button type="button" data-person-dossier="${person.name}">Open full personal dossier</button>
+      </div>
+    </article>
+  `;
+}
+
+function getPersonalIntelligenceOverview(person) {
+  const isDamian = /Damian Borth/i.test(person.name || "");
+  const signal = personProfileSignal(person);
+  const angles = personMeetingAngles(person);
+  const questions = normalizePersonQuestions(person.name, person.questions);
+
+  if (isDamian) {
+    return {
+      readout: [
+        "AI and machine-learning contact connected to Sociovestix's financial-data science agenda.",
+        "Most useful angle: model governance, production AI, and auditability in regulated financial workflows.",
+        "Treat social/profile content as manual/provider-sourced until authenticated collection is configured.",
+      ],
+      credibility: signal,
+      agenda: angles,
+      painPoints:
+        "Likely tension between ambitious AI automation and the need for explainability, evaluation, and stakeholder trust in financial-data environments.",
+      aspirations:
+        "Inference: may be focused on making advanced AI useful in real decision workflows without losing methodological rigor or auditability.",
+      engagement:
+        "Lead with concrete AI governance and data-quality use cases. Avoid generic AI hype; ask where production reliability and uncertainty communication are hardest.",
+      questions,
+      sources:
+        "Configured LinkedIn/profile source, Sociovestix website context, monitored updates, and uploaded notes. Verify biographical details before outreach.",
+    };
+  }
+
+  return {
+    readout: [
+      "Sustainable-finance contact connected to Sociovestix's ESG data quality and financial-data science positioning.",
+      "Most useful angle: evidence quality, real-world ESG data defects, and how research becomes buyer-ready intelligence.",
+      "Treat social/profile content as manual/provider-sourced until authenticated collection is configured.",
+    ],
+    credibility: signal,
+    agenda: angles,
+    painPoints:
+      "Likely tension between ESG credibility, regulatory expectations, data-provider reliability, and the need to prove that sustainability analytics changes decisions.",
+    aspirations:
+      "Inference: may care about making sustainable-finance data more trustworthy, decision-useful, and defensible for institutional stakeholders.",
+    engagement:
+      "Lead with a source-backed observation about ESG data quality. Ask about data defects and decision workflows before pitching automation.",
+    questions,
+    sources:
+      "Configured LinkedIn/profile source, Sociovestix website context, monitored updates, and uploaded notes. Verify biographical details before outreach.",
+  };
+}
+
 function personProfileSignal(person) {
   const raw = String(person.facts || "");
-  if (/LinkedIn profile configured by researcher/i.test(raw)) {
+  if (/LinkedIn profile configured by researcher|Configured source|production social monitoring/i.test(raw)) {
     if (/Damian Borth/i.test(person.name || "")) {
       return "Profile source is tracked as a manual/provider input. Public context connects him with AI, machine learning, and Sociovestix Laboratories.";
     }
@@ -552,8 +643,51 @@ function personProfileSignal(person) {
 
 function personMeetingAngles(person) {
   const raw = String(person.inferences || "");
+  if (/Initial person profile seeded/i.test(raw)) return cleanPersonInferences(person.name, raw);
   if (/Likely meeting angles:/i.test(raw)) return raw.replace(/^Likely meeting angles:\s*/i, "");
   return raw || "Use public updates, profile context, and uploaded notes to identify the strongest meeting angle.";
+}
+
+function cleanPersonFacts(name, value) {
+  const raw = String(value || "");
+  if (/Configured source|configured by researcher|production social monitoring/i.test(raw)) {
+    if (/Damian Borth/i.test(name || "")) {
+      return "Profile source is tracked as a manual/provider input. Public context connects him with AI, machine learning, and Sociovestix Laboratories.";
+    }
+    return "Profile source is tracked as a manual/provider input. Sociovestix context emphasizes sustainable finance, financial data science, and ESG data quality.";
+  }
+  return raw;
+}
+
+function cleanPersonInferences(name, value) {
+  const raw = String(value || "");
+  if (/Initial person profile seeded/i.test(raw)) {
+    if (/Damian Borth/i.test(name || "")) {
+      return "AI productization, model governance, financial time-series workflows, and explainable automation for regulated financial-data users.";
+    }
+    return "ESG data quality, asset-owner sustainability workflows, EU sustainable finance expectations, and climate-transition analytics.";
+  }
+  if (/Likely meeting angles:/i.test(raw)) return raw.replace(/^Likely meeting angles:\s*/i, "");
+  return raw;
+}
+
+function normalizePersonQuestions(name, questions) {
+  const generic = ["What changed recently?", "What pain point should we validate?", "Which source should be checked next?"];
+  const list = Array.isArray(questions) ? questions : [];
+  const isGeneric = !list.length || generic.every((question, index) => list[index] === question);
+  if (!isGeneric) return list;
+  if (/Damian Borth/i.test(name || "")) {
+    return [
+      "Which AI capabilities are most mature for financial-data production use?",
+      "How do you communicate model uncertainty to nontechnical investment stakeholders?",
+      "Where do clients ask for automation but still need auditability?",
+    ];
+  }
+  return [
+    "Which ESG data-quality failures are most expensive for your partners?",
+    "Where do clients still need human analyst judgement in AI-assisted workflows?",
+    "How are EU sustainable finance expectations changing buyer urgency?",
+  ];
 }
 
 function renderLibrary() {
@@ -620,9 +754,10 @@ function renderPersonalIntelligenceDossier(request, notify = true) {
     {};
   const company = companies.find((item) => item.name === person.company) || companies[0] || {};
   const personUpdates = updates.filter((update) => update.company === person.company).slice(0, 4);
+  const overview = getPersonalIntelligenceOverview(person);
   const credibilitySignals = [
-    personProfileSignal(person),
-    `${person.company || company.name || "Primary company"} context connects this person to sustainable finance, AI, or market intelligence workflows.`,
+    overview.credibility,
+    overview.agenda,
     `Source confidence: ${person.confidence || "Medium"}. Treat profile-derived details as verification targets before external use.`,
   ];
 
@@ -650,7 +785,7 @@ function renderPersonalIntelligenceDossier(request, notify = true) {
       </div>
       <div>
         <h3>Strategic Context</h3>
-        <p>${personMeetingAngles(person)}</p>
+        <p>${overview.agenda}</p>
       </div>
     </section>
 
@@ -664,11 +799,11 @@ function renderPersonalIntelligenceDossier(request, notify = true) {
       <div class="insight-columns">
         <div>
           <h4>Professional</h4>
-          <p>Needs credible evidence, clean source trails, and rapid synthesis across public signals, social/profile context, and historical notes.</p>
+          <p>${overview.painPoints}</p>
         </div>
         <div>
           <h4>Strategic</h4>
-          <p>May care about data reliability, AI auditability, ESG methodology quality, and how intelligence is translated into buyer-ready action.</p>
+          <p>Needs credible evidence, clean source trails, and rapid synthesis across public signals, profile context, and historical notes.</p>
         </div>
         <div>
           <h4>Relationship</h4>
@@ -679,13 +814,13 @@ function renderPersonalIntelligenceDossier(request, notify = true) {
 
     <section>
       <h3>Aspirations & Vision</h3>
-      <p>Inference: this person may be motivated by making financial data science more useful, trustworthy, and operationally adopted by institutions. Validate this in conversation.</p>
+      <p>${overview.aspirations}</p>
     </section>
 
     <section>
       <h3>Engagement Approach</h3>
       <ul class="compact-list">
-        <li>Lead with a concise observation from verified public sources.</li>
+        <li>${overview.engagement}</li>
         <li>Ask about current bottlenecks before introducing automation or AI claims.</li>
         <li>Show how the dashboard separates facts, inferences, and recommendations.</li>
         <li>Position manual LinkedIn/social inputs as compliant provider/manual connectors, not brittle scraping.</li>
@@ -694,7 +829,7 @@ function renderPersonalIntelligenceDossier(request, notify = true) {
 
     <section>
       <h3>Discovery Questions</h3>
-      <ul class="compact-list">${(person.questions || []).map((question) => `<li>${question}</li>`).join("")}</ul>
+      <ul class="compact-list">${overview.questions.map((question) => `<li>${question}</li>`).join("")}</ul>
     </section>
 
     <section>
@@ -710,7 +845,7 @@ function renderPersonalIntelligenceDossier(request, notify = true) {
 
     <section>
       <h3>Source Notes</h3>
-      <p>Sources: configured profile URL, ${company.website ? `<a href="${company.website}" target="_blank" rel="noreferrer">${company.name || "company"} website</a>` : "company website"}, stored updates, uploaded notes, and generated briefs. Facts and inferences should be rechecked before outreach.</p>
+      <p>${overview.sources} ${company.website ? `<a href="${company.website}" target="_blank" rel="noreferrer">${company.name || "company"} website</a>` : ""}</p>
     </section>
 
     <section>
@@ -922,9 +1057,9 @@ function normalizeRemoteData(data) {
       "Unlinked",
     url: person.linkedin_url || person.profile_url || person.url || "#",
     confidence: person.ai_confidence ? `${Math.round(Number(person.ai_confidence) * 100)}%` : person.confidence || "Medium",
-    facts: person.notes || person.facts || "",
-    inferences: person.ai_background_summary || person.inferences || "",
-    questions: person.questions || ["What changed recently?", "What pain point should we validate?", "Which source should be checked next?"],
+    facts: cleanPersonFacts(person.full_name || person.name, person.notes || person.facts || ""),
+    inferences: cleanPersonInferences(person.full_name || person.name, person.ai_background_summary || person.inferences || ""),
+    questions: normalizePersonQuestions(person.full_name || person.name, person.questions),
   }));
 
   library = (data.library || library).map((file) => ({
