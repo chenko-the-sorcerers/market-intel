@@ -771,12 +771,11 @@ function hasRisk(labels = []) {
 }
 
 async function askAi(task, question) {
-  const result = await postJson("/api/ai", {
+  return postJson("/api/ai", {
     task,
     question,
     context: compactContext(),
   });
-  return result.text;
 }
 
 async function monitorCompany(company) {
@@ -1002,11 +1001,11 @@ function bindEvents() {
       renderAiBrief(result.brief.body_markdown);
     } catch (error) {
       try {
-        const text = await askAi(
+        const result = await askAi(
           "brief",
           "Generate a one-page meeting brief for Sociovestix Labs. Focus on ESG risk, AI opportunity, recent updates, likely pain points, suggested pitch angle, discovery questions, and sources. Separate facts, inferences, and recommendations.",
         );
-        renderAiBrief(text);
+        renderAiBrief(result.text);
       } catch {
         showToast("AI/DB env not configured yet. Showing local brief.");
       }
@@ -1021,9 +1020,16 @@ function bindEvents() {
     input.value = "";
     const pending = addPendingMessage();
     try {
-      const text = await askAi("chat", question);
+      const result = await askAi("chat", question);
       removeMessage(pending);
-      addMessage("bot", `<strong>AI answer</strong>${formatAiText(text)}`);
+      const label = result.fallback
+        ? "Local retrieval answer"
+        : result.provider?.startsWith("gemini")
+          ? "Gemini answer"
+          : result.provider?.startsWith("openai")
+            ? "OpenAI answer"
+            : "Research answer";
+      addMessage("bot", `<strong>${label}</strong>${formatAiText(result.text)}`);
     } catch (error) {
       removeMessage(pending);
       addMessage(

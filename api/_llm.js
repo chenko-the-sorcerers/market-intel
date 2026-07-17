@@ -1,4 +1,10 @@
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const GEMINI_FALLBACK_MODELS = (
+  process.env.GEMINI_FALLBACK_MODELS || "gemini-1.5-flash-8b,gemini-1.5-flash"
+)
+  .split(",")
+  .map((model) => model.trim())
+  .filter(Boolean);
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
 export async function generateIntelligenceText({ task = "chat", question = "", context = {} }) {
@@ -6,31 +12,45 @@ export async function generateIntelligenceText({ task = "chat", question = "", c
 
   if (process.env.OPENAI_API_KEY) {
     try {
-      return await generateWithOpenAI(prompt);
+      return { text: await generateWithOpenAI(prompt), provider: "openai", fallback: false };
     } catch (error) {
-      return `${fallbackText(question, context)}\n\nProvider status:\n- OpenAI request failed: ${error.message}`;
+      return {
+        text: fallbackText(question, context, `OpenAI unavailable: ${cleanProviderError(error.message)}`),
+        provider: "local-retrieval",
+        fallback: true,
+      };
     }
   }
 
   if (process.env.GEMINI_API_KEY || process.env.MARKET_INTEL_API_KEY) {
     try {
-      return await generateWithGemini(prompt);
+      const result = await generateWithGemini(prompt);
+      return { text: result.text, provider: result.provider, fallback: false };
     } catch (error) {
-      return `${fallbackText(question, context)}\n\nProvider status:\n- Gemini request failed: ${error.message}`;
+      return {
+        text: fallbackText(question, context, `Gemini unavailable: ${cleanProviderError(error.message)}`),
+        provider: "local-retrieval",
+        fallback: true,
+      };
     }
   }
 
-  return fallbackText(question, context);
+  return {
+    text: fallbackText(question, context, "No hosted AI provider is configured."),
+    provider: "local-retrieval",
+    fallback: true,
+  };
 }
 
 export async function summarizeUpdate({ title, rawText, sourceUrl }) {
   const context = { title, rawText: String(rawText || "").slice(0, 12000), sourceUrl };
-  const text = await generateIntelligenceText({
+  const result = await generateIntelligenceText({
     task: "summarize-update-json",
     question:
       "Summarize this update as strict JSON with keys summary, facts, inferences, labels, risk_categories, priority, confidence, citation_url.",
     context,
   });
+  const text = result.text;
 
   const parsed = parseJson(text);
   if (parsed) {
@@ -87,28 +107,40 @@ async function generateWithOpenAI(prompt) {
 
 async function generateWithGemini(prompt) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.MARKET_INTEL_API_KEY;
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text:
-                "You are a personal market intelligence assistant. Always answer in English. Separate facts, inferences, recommendations, and sources. Be explicit about uncertainty.",
-            },
-          ],
-        },
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.35, maxOutputTokens: 1400 },
-      }),
-    },
-  );
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error?.message || "Gemini request failed");
-  return data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("\n") || "";
+  const models = [...new Set([GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS])];
+  const errors = [];
+
+  for (const model of models) {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [
+              {
+                text:
+                  "You are a personal market intelligence assistant. Always answer in English. Separate facts, inferences, recommendations, and sources. Be explicit about uncertainty.",
+              },
+            ],
+          },
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.35, maxOutputTokens: 900 },
+        }),
+      },
+    );
+    const data = await response.json();
+    if (response.ok) {
+      return {
+        text: data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("\n") || "",
+        provider: `gemini:${model}`,
+      };
+    }
+    errors.push(`${model}: ${data.error?.message || "Gemini request failed"}`);
+  }
+
+  throw new Error(errors.join(" | "));
 }
 
 function buildPrompt(task, question, context) {
@@ -126,7 +158,7 @@ function buildPrompt(task, question, context) {
   ].join("\n");
 }
 
-function fallbackText(question, context) {
+function fallbackText(question, context, providerNote = "") {
   const data = context.database || context;
   const companies = data.companies || [];
   const updates = data.updates || [];
@@ -150,18 +182,26 @@ function fallbackText(question, context) {
     relevantPeople ? `- People context:\n${relevantPeople}` : "- No people profiles are stored yet.",
     "",
     "Inferences:",
-    "- The live AI provider is not configured or unavailable, so this answer is generated from stored context without model reasoning.",
+    "- This answer is generated from stored research context while the hosted model is unavailable.",
     "- For Sociovestix, useful intelligence angles remain ESG data quality, financial data science, AI auditability, and source health for social profiles.",
     "",
     "Recommendations:",
     "- Run the monitoring job, review new updates, then generate a brief from the Briefs tab.",
-    "- Add OPENAI_API_KEY or GEMINI_API_KEY in Vercel for full chatbot synthesis.",
+    providerNote ? `- Provider note: ${providerNote}` : "- Add OPENAI_API_KEY or GEMINI_API_KEY in Vercel for full chatbot synthesis.",
     "- Treat LinkedIn/Instagram/X as manual/provider sources unless authenticated collection is configured.",
     "",
     "Sources:",
     "- GAS/Google Sheet dashboard context.",
     ...companies.map((company) => `- ${company.website_url || company.website || company.name}`).slice(0, 5),
   ].join("\n");
+}
+
+function cleanProviderError(message) {
+  const text = String(message || "");
+  if (/quota|rate|limit/i.test(text)) {
+    return "quota or rate limit reached. The app is using local retrieval until quota is available.";
+  }
+  return text.slice(0, 180);
 }
 
 function parseJson(text) {

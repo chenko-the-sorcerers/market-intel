@@ -16,7 +16,7 @@ export default async function handler(request, response) {
 
       const { brief_type = "one-page", title = "Market intelligence brief", question = "" } = request.body || {};
       const context = await getGasData();
-      const body = await generateIntelligenceText({
+      const generated = await generateIntelligenceText({
         task: "brief",
         question:
           question ||
@@ -26,7 +26,7 @@ export default async function handler(request, response) {
       const saved = await saveGasBrief({
         brief_type,
         title,
-        body_markdown: body,
+        body_markdown: generated.text,
         sources: extractSources(context),
       });
       return response.status(200).json({ brief: saved.brief });
@@ -48,7 +48,7 @@ export default async function handler(request, response) {
 
     const { brief_type = "one-page", title = "Market intelligence brief", question = "" } = request.body || {};
     const context = await getDashboardData();
-    const body = await generateIntelligenceText({
+    const generated = await generateIntelligenceText({
       task: "brief",
       question:
         question ||
@@ -58,7 +58,7 @@ export default async function handler(request, response) {
 
     const result = await sql`
       insert into briefs (brief_type, title, body_markdown, sources)
-      values (${brief_type}, ${title}, ${body}, ${JSON.stringify(extractSources(context))}::jsonb)
+      values (${brief_type}, ${title}, ${generated.text}, ${JSON.stringify(extractSources(context))}::jsonb)
       returning *
     `;
 

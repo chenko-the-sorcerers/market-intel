@@ -9,12 +9,12 @@ export default async function handler(request, response) {
   try {
     const { task = "chat", question = "", context = {} } = request.body || {};
     const dbContext = await getStorageContext();
-    const text = await generateIntelligenceText({
+    const result = await generateIntelligenceText({
       task,
       question,
       context: { ...context, database: dbContext },
     });
-    return response.status(200).json({ text });
+    return response.status(200).json(result);
   } catch (error) {
     return response.status(500).json({ error: error.message || "AI request failed" });
   }
